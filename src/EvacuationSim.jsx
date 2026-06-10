@@ -198,7 +198,10 @@ export function buildSimulation({ threat, elderPct, childPct, infoClar, nbrInflu
     scenario,
     tick: 0,
     started: false,
-    activeArcs: [], // transient visual arcs from info node to members
+    activeArcs: [],
+    ripples:    [],  // expanding rings from info node on alert fire (13h)
+    flashes:    [],  // confirmation-source rings at member position (13i/j)
+    dashOffset: 0,   // animated neighbor edge offset (13e)
   };
 }
 
@@ -217,8 +220,10 @@ export function stepSimulation(sim, canvasW, canvasH) {
   const t = sim.tick;
   const newLogs = [];
 
-  // Expire old visual arcs (social arcs live longer than official arcs)
+  sim.dashOffset++;
   sim.activeArcs = sim.activeArcs.filter((a) => t - a.born < (a.social ? 7 : 8));
+  sim.ripples    = sim.ripples.filter((r) => t - r.born < 7);
+  sim.flashes    = sim.flashes.filter((f) => t - f.born < 5);
 
   sim.families.forEach((f) => {
     f.members.forEach((mem) => {
@@ -231,9 +236,11 @@ export function stepSimulation(sim, canvasW, canvasH) {
           mem.status = STATUS.SEEKING;
           mem.seekStart = t;
           mem.confirmCount = 0;
+          mem.lastConfirmSource = 'official';
           const tag = mem.isElder ? "[elder]" : mem.isChild ? "[child<5]" : "";
           newLogs.push(`t${t} ${mem.name} (${f.name}) ${tag} receives alert — needs ${mem.confirmNeeded} confirmation(s)`);
           sim.activeArcs.push({ x1: sim.infoNode.x, y1: sim.infoNode.y, x2: mem.x, y2: mem.y, born: t, col: "#378ADD" });
+          sim.ripples.push({ born: t, clarity: sim.infoClar });
         }
       }
 
@@ -242,6 +249,7 @@ export function stepSimulation(sim, canvasW, canvasH) {
         const confirmChance = clamp(sim.infoNode.reliability * 0.45 + (sim.infoClar / 10) * 0.2, 0.05, 0.75);
         if (Math.random() < confirmChance) {
           mem.confirmCount++;
+          mem.lastConfirmSource = 'official';
           sim.activeArcs.push({ x1: sim.infoNode.x, y1: sim.infoNode.y, x2: mem.x, y2: mem.y, born: t, col: "#EF9F27" });
           newLogs.push(`t${t} ${mem.name}: ${mem.confirmCount}/${mem.confirmNeeded} confirmations`);
         }
@@ -253,6 +261,7 @@ export function stepSimulation(sim, canvasW, canvasH) {
           .find((nf) => nf.members.some((m) => m.status === STATUS.MILLING || m.status === STATUS.EVAC));
         if (activeNeighbor && Math.random() < sim.nbrInfluence) {
           mem.confirmCount = Math.min(mem.confirmNeeded, mem.confirmCount + 1);
+          mem.lastConfirmSource = 'social';
           newLogs.push(`t${t} ${mem.name} sees neighbor active — +1 confirmation`);
           const srcHub = activeNeighbor.members[0];
           sim.activeArcs.push({ x1: srcHub.x, y1: srcHub.y, x2: mem.x, y2: mem.y, born: t, col: "#D97706", social: true });
@@ -264,6 +273,14 @@ export function stepSimulation(sim, canvasW, canvasH) {
           const delay = t - mem.seekStart;
           const why = mem.isElder ? "elder: extra prep" : mem.isChild ? "child<5: gathering kids" : "";
           newLogs.push(`t${t} ${mem.name} (${f.name}) confirmed after ${delay}t — milling${why ? " (" + why + ")" : ""}`);
+          // 13j: flash colour shows which channel drove the final confirmation
+          const flashCol = mem.lastConfirmSource === 'social' ? '#D97706' : '#185FA5';
+          sim.flashes.push({ x: mem.x, y: mem.y, col: flashCol, born: t });
+          // 13i: cascade arc from source hub if social-driven
+          if (mem.lastConfirmSource === 'social' && activeNeighbor) {
+            const srcHub = activeNeighbor.members[0];
+            sim.activeArcs.push({ x1: srcHub.x, y1: srcHub.y, x2: mem.x, y2: mem.y, born: t, col: '#D97706', social: true, cascade: true });
+          }
         }
       }
 
@@ -386,6 +403,27 @@ export function drawSimulation(ctx, sim, W, H, darkMode = false, highlightFamily
   ctx.fillStyle = BG;
   ctx.fillRect(0, 0, W, H);
 
+  // 13f — Information saturation gauge (reached vs evacuated)
+  {
+    const allM     = sim.families.flatMap(f => f.members);
+    const total    = allM.length;
+    const reached  = allM.filter(m => m.status !== STATUS.UNAWARE).length;
+    const evacuated= allM.filter(m => m.status === STATUS.DONE).length;
+    const GH = 5;
+    ctx.fillStyle = darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)";
+    ctx.fillRect(0, 0, W, GH);
+    ctx.fillStyle = "rgba(55,138,221,0.45)";
+    ctx.fillRect(0, 0, (reached / total) * W, GH);
+    ctx.fillStyle = "rgba(29,158,117,0.8)";
+    ctx.fillRect(0, 0, (evacuated / total) * W, GH);
+    if (reached > 0) {
+      ctx.font = "8px system-ui, sans-serif";
+      ctx.fillStyle = darkMode ? "rgba(200,200,200,0.55)" : "rgba(60,60,60,0.5)";
+      ctx.textAlign = "left";
+      ctx.fillText(`${Math.round((reached / total) * 100)}% reached  ${Math.round((evacuated / total) * 100)}% evacuated`, 6, GH + 9);
+    }
+  }
+
   // Grid
   ctx.strokeStyle = GCOL;
   ctx.lineWidth = 0.5;
@@ -395,20 +433,22 @@ export function drawSimulation(ctx, sim, W, H, darkMode = false, highlightFamily
   // Scenario-specific background context
   drawScenarioBackground(ctx, sim.scenario, W, H, darkMode);
 
-  // Neighbor edges (dashed) — brighten when an endpoint is socially active
-  ctx.setLineDash([3, 4]);
+  // Neighbor edges — brighten + animate dash when endpoint is socially active (13e)
   sim.neighborEdges.forEach((e) => {
-    const aActive = e.a.members.some(m => m.status === STATUS.MILLING || m.status === STATUS.EVAC);
-    const bActive = e.b.members.some(m => m.status === STATUS.MILLING || m.status === STATUS.EVAC);
-    const socially = aActive || bActive;
+    const aActive   = e.a.members.some(m => m.status === STATUS.MILLING || m.status === STATUS.EVAC);
+    const bActive   = e.b.members.some(m => m.status === STATUS.MILLING || m.status === STATUS.EVAC);
+    const socially  = aActive || bActive;
     const highlighted = highlightFamilyIdx === null || e.a.fi === highlightFamilyIdx || e.b.fi === highlightFamilyIdx;
-    ctx.globalAlpha = highlighted ? 1 : 0.1;
-    ctx.lineWidth   = socially ? 1.5 : 1;
-    ctx.strokeStyle = socially ? "rgba(217,119,6,0.55)" : "rgba(120,118,112,0.42)";
+    ctx.globalAlpha   = highlighted ? 1 : 0.1;
+    ctx.lineWidth     = socially ? 1.5 : 1;
+    ctx.strokeStyle   = socially ? "rgba(217,119,6,0.6)" : "rgba(120,118,112,0.42)";
+    ctx.setLineDash([3, 4]);
+    ctx.lineDashOffset = socially ? -(sim.dashOffset * 0.6) % 7 : 0;
     const ha = e.a.members[0], hb = e.b.members[0];
     ctx.beginPath(); ctx.moveTo(ha.x, ha.y); ctx.lineTo(hb.x, hb.y); ctx.stroke();
   });
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha    = 1;
+  ctx.lineDashOffset = 0;
   ctx.setLineDash([]);
 
   // Family bonds
@@ -439,10 +479,19 @@ export function drawSimulation(ctx, sim, W, H, darkMode = false, highlightFamily
       ctx.shadowBlur  = a.social ? 8 : 6;
     }
 
-    // Line
-    ctx.beginPath(); ctx.moveTo(a.x1, a.y1); ctx.lineTo(a.x2, a.y2);
+    // Line — social arcs bow outward as a quadratic curve (13a)
+    ctx.beginPath(); ctx.moveTo(a.x1, a.y1);
+    if (a.social) {
+      const mx  = (a.x1 + a.x2) / 2, my = (a.y1 + a.y2) / 2;
+      const len = Math.hypot(a.x2 - a.x1, a.y2 - a.y1) || 1;
+      const px  = -(a.y2 - a.y1) / len, py = (a.x2 - a.x1) / len;
+      const bow = a.cascade ? 28 : 18;
+      ctx.quadraticCurveTo(mx + px * bow, my + py * bow, a.x2, a.y2);
+    } else {
+      ctx.lineTo(a.x2, a.y2);
+    }
     ctx.strokeStyle = a.col + hex;
-    ctx.lineWidth   = a.social ? 2 : 1.5;
+    ctx.lineWidth   = a.social ? (a.cascade ? 2.5 : 2) : 1.5;
     ctx.setLineDash(a.social ? [5, 4] : [3, 5]);
     ctx.stroke();
     ctx.setLineDash([]);
@@ -466,8 +515,23 @@ export function drawSimulation(ctx, sim, W, H, darkMode = false, highlightFamily
     ctx.restore();
   });
 
-  // Info node (center)
+  // 13h — Broadcast ripples from info node
   const nd = sim.infoNode;
+  sim.ripples.forEach((r) => {
+    const age      = (sim.tick - r.born) / 7;
+    if (age >= 1) return;
+    const speed    = 0.4 + (r.clarity / 10) * 0.5;
+    const maxR     = 80 + r.clarity * 6;
+    const radius   = age * maxR * speed / 0.9;
+    const alpha    = Math.max(0, 1 - age) * 0.45;
+    ctx.beginPath();
+    ctx.arc(nd.x, nd.y, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(55,138,221,${alpha.toFixed(2)})`;
+    ctx.lineWidth   = 1.5 - age;
+    ctx.stroke();
+  });
+
+  // Info node (center)
   const seekingCount = sim.families.reduce(
     (n, f) => n + f.members.filter((m) => m.status === STATUS.SEEKING).length, 0
   );
@@ -503,14 +567,26 @@ export function drawSimulation(ctx, sim, W, H, darkMode = false, highlightFamily
           ? CHILD_STR
           : STATUS_COLORS[m.status].stroke;
 
-      // Seeking ring (confirmation progress arc)
+      // 13d — Persistent "reached" halo: thin ring on any member alerted at least once
+      if (m.seekStart !== null && m.status !== STATUS.DONE) {
+        ctx.beginPath(); ctx.arc(m.x, m.y, rad + 8, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(55,138,221,0.22)";
+        ctx.lineWidth = 1; ctx.stroke();
+      }
+
+      // 13g — Confirmation progress ring: always visible, full when highlighted
       if (m.status === STATUS.SEEKING) {
+        const isHighlighted = highlightFamilyIdx === null || f.fi === highlightFamilyIdx;
         ctx.beginPath(); ctx.arc(m.x, m.y, rad + 5, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(55,138,221,0.13)"; ctx.fill();
+        ctx.fillStyle = isHighlighted ? "rgba(55,138,221,0.13)" : "rgba(55,138,221,0.06)";
+        ctx.fill();
         const prog = clamp(m.confirmCount / Math.max(1, m.confirmNeeded), 0, 1);
-        ctx.beginPath();
-        ctx.arc(m.x, m.y, rad + 5, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
-        ctx.strokeStyle = "#378ADD"; ctx.lineWidth = 2; ctx.stroke();
+        if (prog > 0) {
+          ctx.beginPath();
+          ctx.arc(m.x, m.y, rad + 5, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
+          ctx.strokeStyle = isHighlighted ? "#378ADD" : "rgba(55,138,221,0.45)";
+          ctx.lineWidth = isHighlighted ? 2 : 1.5; ctx.stroke();
+        }
       }
 
       // Milling glow
@@ -586,6 +662,21 @@ export function drawSimulation(ctx, sim, W, H, darkMode = false, highlightFamily
     }
   });
   ctx.globalAlpha = 1;
+
+  // 13i+13j — Confirmation-source flashes (expanding rings coloured by channel)
+  sim.flashes.forEach((fl) => {
+    const age    = (sim.tick - fl.born) / 5;
+    if (age >= 1) return;
+    const radius = 8 + age * 26;
+    const alpha  = (1 - age) * 0.7;
+    ctx.save();
+    ctx.shadowColor = fl.col; ctx.shadowBlur = 10 * (1 - age);
+    ctx.beginPath(); ctx.arc(fl.x, fl.y, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = fl.col + Math.round(alpha * 255).toString(16).padStart(2, "0");
+    ctx.lineWidth = 2.5 - age * 1.5;
+    ctx.stroke();
+    ctx.restore();
+  });
 }
 
 // ─── Stats helper ─────────────────────────────────────────────────────────────
