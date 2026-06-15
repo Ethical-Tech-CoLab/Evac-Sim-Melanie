@@ -476,7 +476,7 @@ function HowToUse() {
     { n: 1, title: "Choose a scenario", body: "Select Pedestrian, Car, or Train. Each changes milling times and movement speeds." },
     { n: 2, title: "Set your parameters", body: "Open the ⚙ Parameters panel and adjust sliders. Each shows a live hint describing the effect." },
     { n: 3, title: "Run the simulation", body: "Press ▶ Run. Use Step for tick-by-tick observation. Hover a family to highlight it; click a node to inspect it." },
-    { n: 4, title: "Read the summary", body: "When complete, a summary panel shows per-phase timing, the slowest family, and a bar chart of family timelines." },
+    { n: 4, title: "Read the summary", body: "When complete, a summary panel shows per-phase timing, the slowest family, a bar chart of family timelines, and a Neighbour Influence section breaking down how the social and official channels drove evacuations." },
     { n: 5, title: "Compare runs", body: "Pin any run in the Run History panel. Subsequent runs show whether they are faster or slower than the pinned baseline." },
   ];
   return (
@@ -510,6 +510,159 @@ function HowToUse() {
             </FadeIn>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function NeighbourInfluenceGuide() {
+  const metrics = [
+    {
+      label: "Social events fired",
+      color: "#D97706",
+      body: "The total number of times the neighbour influence mechanism triggered during the run — i.e., how many times a member received a social confirmation from seeing an adjacent family mill or evacuate. A high count relative to total members suggests the social channel was very active. A count of zero means the Neighbour influence slider had no effect, or no families became active early enough to influence others.",
+    },
+    {
+      label: "Socially confirmed",
+      color: "#D97706",
+      body: "The number of members whose final confirmation — the one that pushed them from Seeking into Milling — came from the social channel. This is the most meaningful metric: it counts how many people would not have evacuated (or would have evacuated later) without neighbour influence. High values mean the social channel was decision-critical, not just supplementary.",
+    },
+    {
+      label: "Officially confirmed",
+      color: "#185FA5",
+      body: "Members whose final confirmation came from the official information node. When this number is high relative to social confirmations, it means households were persuaded primarily by the broadcast rather than by watching neighbours. This typically occurs when Info clarity is high or Neighbour influence is low.",
+    },
+    {
+      label: "Dominant channel",
+      color: "#3d3d3a",
+      body: "A single label — 🔵 Official or 🟡 Social — indicating which channel drove more final confirmations across the whole run. This is the headline finding for the information-flow question the simulation is designed to explore. Varying the Neighbour influence and Info clarity sliders changes which channel dominates and how that affects total evacuation time.",
+    },
+    {
+      label: "Channel split bar",
+      color: "#3d3d3a",
+      body: "A horizontal bar divided into blue (official) and amber (social) segments, proportional to the share of members confirmed by each channel. A bar that is mostly blue means the broadcast drove evacuations; mostly amber means social contagion dominated. Compare this bar across runs with different Neighbour influence settings to see how sensitive the community is to social dynamics.",
+    },
+    {
+      label: "Per-family breakdown",
+      color: "#3d3d3a",
+      body: "One bar per family showing that family's own official-vs-social split. Families with many elders tend to rely more on official confirmations (they need one extra and are slower to be influenced socially). Families that are well-connected in the neighbour network — positioned between several milling households — are more likely to be socially driven. This view reveals which specific households were the social tipping points.",
+    },
+  ];
+
+  return (
+    <div style={{ background: "#fff", padding: "60px 0" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "0 16px" }}>
+        <FadeIn>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#D97706", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+            Reading the results
+          </div>
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: "#0f1e36", marginBottom: 8, letterSpacing: "-0.3px" }}>
+            Neighbour influence summary panel
+          </h2>
+          <p style={{ fontSize: 13, lineHeight: 1.8, color: "#5a5a55", marginBottom: 32, maxWidth: 560 }}>
+            After the simulation completes, the summary panel includes a <strong>Neighbour Influence</strong> section that answers the core research question: was it the official broadcast or social contagion that actually drove evacuations? Here is what each metric means.
+          </p>
+        </FadeIn>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {metrics.map((m, i) => (
+            <FadeIn key={m.label} delay={i * 60}>
+              <div style={{ display: "flex", gap: 16, padding: "14px 16px", background: "#f8f7f4", borderRadius: 10, borderLeft: `3px solid ${m.color}` }}>
+                <div style={{ minWidth: 160, flexShrink: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: m.color, lineHeight: 1.4 }}>{m.label}</div>
+                </div>
+                <div style={{ fontSize: 12, lineHeight: 1.75, color: "#5a5a55" }}>{m.body}</div>
+              </div>
+            </FadeIn>
+          ))}
+        </div>
+
+        <FadeIn delay={400}>
+          <div style={{ marginTop: 24, background: "#FEF3E2", borderRadius: 10, padding: "14px 16px", border: "0.5px solid rgba(217,119,6,0.2)" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#92400E", marginBottom: 6 }}>Research tip</div>
+            <p style={{ fontSize: 12, lineHeight: 1.75, color: "#78350F", margin: 0 }}>
+              To isolate the social channel's effect: run once with Neighbour influence at 0%, then again at a high value (70–100%) with all other parameters identical. The difference in total ticks and dominant channel between those two runs directly quantifies how much social contagion is accelerating — or could accelerate — evacuation in your modelled community.
+            </p>
+          </div>
+        </FadeIn>
+      </div>
+    </div>
+  );
+}
+
+function TicksGuide() {
+  return (
+    <div style={{ background: "#f8f7f4", padding: "60px 0" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "0 16px" }}>
+        <FadeIn>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#185FA5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+            Reading the results
+          </div>
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: "#0f1e36", marginBottom: 8, letterSpacing: "-0.3px" }}>
+            Understanding ticks
+          </h2>
+          <p style={{ fontSize: 13, lineHeight: 1.8, color: "#5a5a55", marginBottom: 32, maxWidth: 560 }}>
+            Every timing number in the simulation — summary stats, event log entries, phase durations — is expressed in ticks. Here is what that means and how to use those numbers.
+          </p>
+        </FadeIn>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+          {[
+            {
+              title: "What is a tick?",
+              body: "A tick is the simulation's discrete time step. On each tick, every member is checked for a status transition: could they receive an alert? Have they collected enough confirmations? Have they finished milling? Each tick is one pass through that logic for all members simultaneously.",
+            },
+            {
+              title: "Why not real minutes?",
+              body: "The timing values in this model — milling delays, confirmation counts, movement speeds — were chosen to produce realistic relative behaviour, not calibrated to measured real-world durations. Labelling ticks as minutes would imply a precision the model does not have. Ticks are honest about that.",
+            },
+            {
+              title: "How fast is a tick?",
+              body: "At normal speed, the simulation advances one tick every 200 ms of real time — roughly 5 ticks per second. The Step button advances one tick at a time. The total tick count when a run completes is shown in the summary header and in the Run History panel.",
+            },
+            {
+              title: "What do tick counts tell you?",
+              body: "Tick counts are most meaningful as relative comparisons. A run that completes in 28 ticks is faster than one that completes in 42 ticks under the same parameters. The summary's average phase durations (e.g. \"Avg. milling 6t\") show where time is being lost — large milling values point to preparation bottlenecks, large seeking values to information bottlenecks.",
+            },
+          ].map((c, i) => (
+            <FadeIn key={c.title} delay={i * 60}>
+              <div style={{ background: "#fff", borderRadius: 10, border: "0.5px solid rgba(0,0,0,0.1)", padding: "16px 18px" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#0f1e36", marginBottom: 6 }}>{c.title}</div>
+                <p style={{ fontSize: 12, lineHeight: 1.75, color: "#5a5a55", margin: 0 }}>{c.body}</p>
+              </div>
+            </FadeIn>
+          ))}
+        </div>
+
+        <FadeIn delay={280}>
+          <div style={{ background: "#fff", borderRadius: 10, border: "0.5px solid rgba(0,0,0,0.1)", padding: "16px 18px", marginBottom: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#0f1e36", marginBottom: 8 }}>How ticks appear in the interface</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[
+                { where: "Tick counter (controls bar)", what: "Shows the current tick as the simulation runs. Resets to 0 on Reset." },
+                { where: "Event log",                   what: "Each entry is prefixed with the tick it occurred on, e.g. t12 Rivera evacuating. Lets you trace the exact sequence of events." },
+                { where: "Node tooltip",                what: "\"In phase: 4 ticks\" shows how long the clicked member has been in their current status." },
+                { where: "Summary — phase averages",    what: "Avg. seeking, milling, and evac values are the mean ticks each member spent in that phase across the whole run." },
+                { where: "Summary — family bar chart",  what: "Bar segment widths are proportional to average ticks per phase. Longer segments = more time spent. Hover for exact values." },
+                { where: "Run history",                 what: "Each row shows total ticks to completion, making cross-run comparison instant." },
+              ].map(row => (
+                <div key={row.where} style={{ display: "flex", gap: 12, paddingBottom: 8, borderBottom: "0.5px solid rgba(0,0,0,0.06)" }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#185FA5", minWidth: 180, flexShrink: 0 }}>{row.where}</span>
+                  <span style={{ fontSize: 11, lineHeight: 1.65, color: "#5a5a55" }}>{row.what}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </FadeIn>
+
+        <FadeIn delay={360}>
+          <div style={{ background: "#E6F1FB", borderRadius: 10, padding: "14px 16px", border: "0.5px solid rgba(24,95,165,0.2)" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#0C447C", marginBottom: 6 }}>Comparing runs using ticks</div>
+            <p style={{ fontSize: 12, lineHeight: 1.75, color: "#185FA5", margin: 0 }}>
+              The most productive use of tick counts is parameter comparison. Pin a baseline run, then change a single slider and run again. The summary will show "N ticks faster/slower than pinned." Because all other conditions are identical, that difference isolates the effect of the one parameter you changed — making ticks a reliable unit of comparison even if they do not map to a specific real-world duration.
+            </p>
+          </div>
+        </FadeIn>
       </div>
     </div>
   );
@@ -600,6 +753,8 @@ export default function AboutPage({ onLaunch }) {
       <PopulationFactors />
       <ScenariosSection />
       <HowToUse />
+      <NeighbourInfluenceGuide />
+      <TicksGuide />
       <Research />
 
       {/* Final CTA */}

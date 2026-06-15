@@ -202,6 +202,7 @@ export function buildSimulation({ threat, elderPct, childPct, infoClar, nbrInflu
     ripples:    [],  // expanding rings from info node on alert fire (13h)
     flashes:    [],  // confirmation-source rings at member position (13i/j)
     dashOffset: 0,   // animated neighbor edge offset (13e)
+    socialInfluenceEvents: 0, // total times neighbour influence fired
   };
 }
 
@@ -262,6 +263,7 @@ export function stepSimulation(sim, canvasW, canvasH) {
         if (activeNeighbor && Math.random() < sim.nbrInfluence) {
           mem.confirmCount = Math.min(mem.confirmNeeded, mem.confirmCount + 1);
           mem.lastConfirmSource = 'social';
+          sim.socialInfluenceEvents++;
           newLogs.push(`t${t} ${mem.name} sees neighbor active — +1 confirmation`);
           const srcHub = activeNeighbor.members[0];
           sim.activeArcs.push({ x1: srcHub.x, y1: srcHub.y, x2: mem.x, y2: mem.y, born: t, col: "#D97706", social: true });
@@ -273,6 +275,7 @@ export function stepSimulation(sim, canvasW, canvasH) {
           const delay = t - mem.seekStart;
           const why = mem.isElder ? "elder: extra prep" : mem.isChild ? "child<5: gathering kids" : "";
           newLogs.push(`t${t} ${mem.name} (${f.name}) confirmed after ${delay}t — milling${why ? " (" + why + ")" : ""}`);
+          mem.confirmedBySocial = mem.lastConfirmSource === 'social';
           // 13j: flash colour shows which channel drove the final confirmation
           const flashCol = mem.lastConfirmSource === 'social' ? '#D97706' : '#185FA5';
           sim.flashes.push({ x: mem.x, y: mem.y, col: flashCol, born: t });
@@ -731,6 +734,20 @@ export function computeRunSummary(sim, params) {
   if (slowest.childCount > 0) bottleneck += (bottleneck ? " + " : "") + `${slowest.childCount} child${slowest.childCount > 1 ? "ren" : ""}`;
   if (!bottleneck) bottleneck = "large household";
 
+  // Neighbour influence summary
+  const allMs2           = sim.families.flatMap(f => f.members);
+  const confirmedMembers = allMs2.filter(m => m.millingStart !== null);
+  const sociallyConfirmed   = confirmedMembers.filter(m => m.confirmedBySocial).length;
+  const officiallyConfirmed = confirmedMembers.filter(m => !m.confirmedBySocial).length;
+  const dominantChannel  = sociallyConfirmed > officiallyConfirmed ? "social" : "official";
+
+  const neighbourFamilyData = sim.families.map(f => ({
+    name:     f.name,
+    col:      f.col,
+    social:   f.members.filter(m => m.confirmedBySocial).length,
+    official: f.members.filter(m => m.millingStart !== null && !m.confirmedBySocial).length,
+  }));
+
   return {
     id: Date.now(),
     totalTicks:  sim.tick,
@@ -742,6 +759,12 @@ export function computeRunSummary(sim, params) {
     familyData,
     scenario: sim.scenario,
     params: { ...params },
+    // Neighbour influence
+    socialEvents:       sim.socialInfluenceEvents,
+    sociallyConfirmed,
+    officiallyConfirmed,
+    dominantChannel,
+    neighbourFamilyData,
   };
 }
 
@@ -1203,6 +1226,85 @@ export default function EvacuationSim() {
                   {label}
                 </span>
               ))}
+            </div>
+
+            {/* Neighbour influence summary */}
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: "0.5px solid rgba(0,0,0,0.08)" }}>
+              <div style={{ fontSize: 10, fontWeight: 600, color: "#737069", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
+                Neighbour Influence
+              </div>
+
+              {/* Top stats row */}
+              <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+                <div style={{ flex: 1, background: "#fff", borderRadius: 6, padding: "5px 8px", textAlign: "center" }}>
+                  <div style={{ fontSize: 9, color: "#737069" }}>Social events fired</div>
+                  <div style={{ fontSize: 16, fontWeight: 500, color: "#D97706" }}>{runSummary.socialEvents}</div>
+                </div>
+                <div style={{ flex: 1, background: "#fff", borderRadius: 6, padding: "5px 8px", textAlign: "center" }}>
+                  <div style={{ fontSize: 9, color: "#737069" }}>Socially confirmed</div>
+                  <div style={{ fontSize: 16, fontWeight: 500, color: "#D97706" }}>{runSummary.sociallyConfirmed}</div>
+                </div>
+                <div style={{ flex: 1, background: "#fff", borderRadius: 6, padding: "5px 8px", textAlign: "center" }}>
+                  <div style={{ fontSize: 9, color: "#737069" }}>Officially confirmed</div>
+                  <div style={{ fontSize: 16, fontWeight: 500, color: "#185FA5" }}>{runSummary.officiallyConfirmed}</div>
+                </div>
+                <div style={{ flex: 1.4, background: "#fff", borderRadius: 6, padding: "5px 8px", textAlign: "center" }}>
+                  <div style={{ fontSize: 9, color: "#737069" }}>Dominant channel</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: runSummary.dominantChannel === 'social' ? "#D97706" : "#185FA5" }}>
+                    {runSummary.dominantChannel === 'social' ? '🟡 Social' : '🔵 Official'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Official vs Social split bar */}
+              {(() => {
+                const total = runSummary.sociallyConfirmed + runSummary.officiallyConfirmed;
+                if (total === 0) return null;
+                const socialPct   = (runSummary.sociallyConfirmed   / total) * 100;
+                const officialPct = (runSummary.officiallyConfirmed / total) * 100;
+                return (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 9, color: "#737069", marginBottom: 4 }}>
+                      Channel split — final confirmation source per member
+                    </div>
+                    <div style={{ display: "flex", height: 14, borderRadius: 4, overflow: "hidden", background: "rgba(0,0,0,0.05)" }}>
+                      <div style={{ width: `${officialPct}%`, background: "#378ADD" }} title={`Official: ${runSummary.officiallyConfirmed}`} />
+                      <div style={{ width: `${socialPct}%`,   background: "#D97706" }} title={`Social: ${runSummary.sociallyConfirmed}`} />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#737069", marginTop: 3 }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                        <span style={{ width: 7, height: 7, background: "#378ADD", display: "inline-block", borderRadius: 1 }} />
+                        Official {Math.round(officialPct)}%
+                      </span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                        Social {Math.round(socialPct)}%
+                        <span style={{ width: 7, height: 7, background: "#D97706", display: "inline-block", borderRadius: 1 }} />
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Per-family breakdown */}
+              <div style={{ fontSize: 9, color: "#737069", marginBottom: 5 }}>
+                Per-family channel breakdown
+              </div>
+              {runSummary.neighbourFamilyData.map(fd => {
+                const total = fd.social + fd.official;
+                if (total === 0) return null;
+                return (
+                  <div key={fd.name} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                    <div style={{ fontSize: 10, fontWeight: 500, color: fd.col, minWidth: 52 }}>{fd.name}</div>
+                    <div style={{ flex: 1, display: "flex", height: 10, borderRadius: 3, overflow: "hidden", background: "rgba(0,0,0,0.05)" }}>
+                      <div style={{ width: `${(fd.official / total) * 100}%`, background: "#378ADD" }} title={`Official: ${fd.official}`} />
+                      <div style={{ width: `${(fd.social   / total) * 100}%`, background: "#D97706" }} title={`Social: ${fd.social}`} />
+                    </div>
+                    <div style={{ fontSize: 9, color: "#737069", minWidth: 60, textAlign: "right" }}>
+                      {fd.official}off · {fd.social}soc
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         );
