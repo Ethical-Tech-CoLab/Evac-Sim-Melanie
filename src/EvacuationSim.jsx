@@ -61,6 +61,15 @@ const irnd  = (a, b) => Math.floor(rnd(a, b + 1));
 const pick  = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
+function findNearestOpenCorridor(sim, x, y) {
+  if (!sim.corridors) return null;
+  const open = sim.corridors.filter(c => c.open);
+  if (open.length === 0) return null;
+  return open.reduce((best, c) =>
+    Math.hypot(x - c.x, y - c.y) < Math.hypot(x - best.x, y - best.y) ? c : best
+  );
+}
+
 // ─── Simulation builder ───────────────────────────────────────────────────────
 
 /**
@@ -76,10 +85,25 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
  * @param {string} params.scenario      - "pedestrian" | "car" | "train"
  * @param {number} canvasWidth
  */
-export function buildSimulation({ threat, elderPct, childPct, infoClar, nbrInfluence, avgFamilySize = 3, scenario = "pedestrian", canvasWidth }) {
+export function buildSimulation({ threat, elderPct, childPct, infoClar, nbrInfluence, avgFamilySize = 3, scenario = "pedestrian", corridorSettings = null, canvasWidth }) {
   const sc = SCENARIOS[scenario] ?? SCENARIOS.pedestrian;
   const W = canvasWidth;
   const H = CANVAS_HEIGHT;
+
+  // Build corridor gates — only active for pedestrian and car scenarios
+  const settingsMap = corridorSettings
+    ? Object.fromEntries(corridorSettings.map(s => [s.id, s]))
+    : {};
+  const corridors = scenario === 'train' ? [] : [
+    { id: 'N', label: 'North', x: W / 2, y: 18,      exitX: W / 2,   exitY: -100  },
+    { id: 'S', label: 'South', x: W / 2, y: H - 18,  exitX: W / 2,   exitY: H+100 },
+    { id: 'E', label: 'East',  x: W - 18, y: H / 2,  exitX: W + 100, exitY: H / 2 },
+    { id: 'W', label: 'West',  x: 18,     y: H / 2,  exitX: -100,    exitY: H / 2 },
+  ].map(c => ({
+    ...c,
+    open:         settingsMap[c.id]?.open         ?? true,
+    closesAtTick: settingsMap[c.id]?.closesAtTick ?? null,
+  }));
 
   const infoNode = {
     x: W / 2,
@@ -203,6 +227,8 @@ export function buildSimulation({ threat, elderPct, childPct, infoClar, nbrInflu
     flashes:    [],  // confirmation-source rings at member position (13i/j)
     dashOffset: 0,   // animated neighbor edge offset (13e)
     socialInfluenceEvents: 0, // total times neighbour influence fired
+    corridors,
+    closureEvents: [],        // transient red ripples when a corridor closes
   };
 }
 
@@ -222,9 +248,36 @@ export function stepSimulation(sim, canvasW, canvasH) {
   const newLogs = [];
 
   sim.dashOffset++;
-  sim.activeArcs = sim.activeArcs.filter((a) => t - a.born < (a.social ? 7 : 8));
-  sim.ripples    = sim.ripples.filter((r) => t - r.born < 7);
-  sim.flashes    = sim.flashes.filter((f) => t - f.born < 5);
+  sim.activeArcs    = sim.activeArcs.filter((a) => t - a.born < (a.social ? 7 : 8));
+  sim.ripples       = sim.ripples.filter((r) => t - r.born < 7);
+  sim.flashes       = sim.flashes.filter((f) => t - f.born < 5);
+  sim.closureEvents = (sim.closureEvents || []).filter((e) => t - e.born < 9);
+
+  // ── Corridor closure check ─────────────────────────────────────────────────
+  (sim.corridors || []).forEach((c) => {
+    if (c.open && c.closesAtTick !== null && t >= c.closesAtTick) {
+      c.open = false;
+      newLogs.push(`t${t} ⚠ ${c.label} corridor closed`);
+      sim.closureEvents.push({ x: c.x, y: c.y, born: t });
+      // Reroute any EVAC members heading to this corridor
+      sim.families.forEach((fam) => {
+        fam.members.forEach((mem) => {
+          if (mem.status === STATUS.EVAC && mem.corridorId === c.id) {
+            const alt = findNearestOpenCorridor(sim, mem.x, mem.y);
+            if (!alt) {
+              mem.trapped = true;
+              newLogs.push(`t${t} ${mem.name} (${fam.name}) trapped — no open corridors`);
+            } else {
+              mem.corridorId = alt.id;
+              mem.tx = alt.exitX; mem.ty = alt.exitY;
+              newLogs.push(`t${t} ${mem.name} rerouting → ${alt.label} corridor`);
+              sim.activeArcs.push({ x1: mem.x, y1: mem.y, x2: alt.x, y2: alt.y, born: t, col: '#D97706', social: true });
+            }
+          }
+        });
+      });
+    }
+  });
 
   sim.families.forEach((f) => {
     f.members.forEach((mem) => {
@@ -290,12 +343,29 @@ export function stepSimulation(sim, canvasW, canvasH) {
       // ── MILLING → EVAC ────────────────────────────────────────────────────
       else if (mem.status === STATUS.MILLING) {
         if (t - mem.millingStart >= mem.millingTicks) {
-          mem.status = STATUS.EVAC;
-          mem.evacStart = t;
-          const ang = Math.atan2(mem.y - canvasH / 2, mem.x - canvasW / 2);
-          mem.tx = mem.x + Math.cos(ang) * 300;
-          mem.ty = mem.y + Math.sin(ang) * 300;
-          newLogs.push(`t${t} ${mem.name} (${f.name}) evacuating`);
+          const corridor = findNearestOpenCorridor(sim, mem.x, mem.y);
+          if (sim.corridors.length > 0 && !corridor) {
+            // All corridors blocked — member is trapped
+            if (!mem.trapped) {
+              mem.trapped = true;
+              newLogs.push(`t${t} ${mem.name} (${f.name}) trapped — all corridors blocked`);
+            }
+          } else {
+            mem.status = STATUS.EVAC;
+            mem.evacStart = t;
+            if (corridor) {
+              mem.corridorId = corridor.id;
+              mem.tx = corridor.exitX;
+              mem.ty = corridor.exitY;
+              newLogs.push(`t${t} ${mem.name} (${f.name}) evacuating via ${corridor.label} corridor`);
+            } else {
+              // Train scenario — radial evacuation
+              const ang = Math.atan2(mem.y - canvasH / 2, mem.x - canvasW / 2);
+              mem.tx = mem.x + Math.cos(ang) * 300;
+              mem.ty = mem.y + Math.sin(ang) * 300;
+              newLogs.push(`t${t} ${mem.name} (${f.name}) evacuating`);
+            }
+          }
         }
       }
 
@@ -316,8 +386,16 @@ export function stepSimulation(sim, canvasW, canvasH) {
     });
   });
 
-  const finished = sim.families.every((f) => f.members.every((m) => m.status === STATUS.DONE));
-  if (finished) newLogs.push(`All evacuated at tick ${sim.tick}.`);
+  const finished = sim.families.every((f) =>
+    f.members.every((m) => m.status === STATUS.DONE || m.trapped)
+  );
+  if (finished) {
+    const trapped = sim.families.flatMap(f => f.members).filter(m => m.trapped).length;
+    if (trapped > 0)
+      newLogs.push(`Simulation ended at tick ${sim.tick}. ${trapped} member${trapped > 1 ? "s" : ""} trapped — corridor(s) blocked.`);
+    else
+      newLogs.push(`All evacuated at tick ${sim.tick}.`);
+  }
 
   return { sim, newLogs, finished };
 }
@@ -570,6 +648,15 @@ export function drawSimulation(ctx, sim, W, H, darkMode = false, highlightFamily
           ? CHILD_STR
           : STATUS_COLORS[m.status].stroke;
 
+      // Trapped member indicator — pulsing red dashed ring
+      if (m.trapped) {
+        const pulse = Math.sin(sim.tick * 0.4) * 0.3 + 0.7;
+        ctx.beginPath(); ctx.arc(m.x, m.y, rad + 10, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(220,38,38,${pulse})`;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]);
+      }
+
       // 13d — Persistent "reached" halo: thin ring on any member alerted at least once
       if (m.seekStart !== null && m.status !== STATUS.DONE) {
         ctx.beginPath(); ctx.arc(m.x, m.y, rad + 8, 0, Math.PI * 2);
@@ -665,6 +752,77 @@ export function drawSimulation(ctx, sim, W, H, darkMode = false, highlightFamily
     }
   });
   ctx.globalAlpha = 1;
+
+  // ── Corridor closure ripples ──────────────────────────────────────────────
+  (sim.closureEvents || []).forEach((e) => {
+    const age = (sim.tick - e.born) / 9;
+    if (age >= 1) return;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, age * 70, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(220,38,38,${(1 - age) * 0.7})`;
+    ctx.lineWidth = 2; ctx.stroke();
+  });
+
+  // ── Corridor gate markers ─────────────────────────────────────────────────
+  (sim.corridors || []).forEach((c) => {
+    const t   = sim.tick;
+    const closingSoon = c.open && c.closesAtTick !== null && c.closesAtTick - t <= 5 && c.closesAtTick > t;
+    const col = c.open ? (closingSoon ? '#F59E0B' : '#1D9E75') : '#DC2626';
+    const R   = 14;
+
+    ctx.save();
+
+    // Gate circle
+    ctx.beginPath(); ctx.arc(c.x, c.y, R, 0, Math.PI * 2);
+    ctx.fillStyle   = col; ctx.fill();
+    ctx.strokeStyle = darkMode ? '#1a1a18' : '#f8f7f4';
+    ctx.lineWidth   = 2; ctx.stroke();
+
+    // Gate letter
+    ctx.font = '700 9px system-ui, sans-serif';
+    ctx.fillStyle   = '#fff';
+    ctx.textAlign   = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(c.id, c.x, c.y);
+
+    // X overlay when closed
+    if (!c.open) {
+      const d = 4;
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(c.x - d, c.y - d); ctx.lineTo(c.x + d, c.y + d);
+      ctx.moveTo(c.x + d, c.y - d); ctx.lineTo(c.x - d, c.y + d);
+      ctx.stroke();
+    }
+
+    // "closes t:N" label directed toward canvas centre
+    if (c.open && c.closesAtTick !== null) {
+      const inset = R + 12;
+      const [lx, ly] = c.id === 'N' ? [c.x, c.y + inset]
+                      : c.id === 'S' ? [c.x, c.y - inset]
+                      : c.id === 'E' ? [c.x - inset, c.y]
+                      :                [c.x + inset, c.y];
+      ctx.font      = `${closingSoon ? '700' : '500'} 8px system-ui, sans-serif`;
+      ctx.fillStyle = closingSoon ? '#F59E0B' : (darkMode ? 'rgba(220,220,220,0.7)' : 'rgba(60,60,60,0.6)');
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`closes t:${c.closesAtTick}`, lx, ly);
+    }
+
+    // "BLOCKED" label when closed
+    if (!c.open) {
+      const inset = R + 12;
+      const [lx, ly] = c.id === 'N' ? [c.x, c.y + inset]
+                      : c.id === 'S' ? [c.x, c.y - inset]
+                      : c.id === 'E' ? [c.x - inset, c.y]
+                      :                [c.x + inset, c.y];
+      ctx.font      = '600 8px system-ui, sans-serif';
+      ctx.fillStyle = '#DC2626';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('BLOCKED', lx, ly);
+    }
+
+    ctx.restore();
+  });
 
   // 13i+13j — Confirmation-source flashes (expanding rings coloured by channel)
   sim.flashes.forEach((fl) => {
@@ -815,6 +973,14 @@ export default function EvacuationSim() {
 
   const [scenario, setScenario] = useState("pedestrian");
 
+  const DEFAULT_CORRIDORS = [
+    { id: 'N', label: 'North', open: true, closesAtTick: '' },
+    { id: 'S', label: 'South', open: true, closesAtTick: '' },
+    { id: 'E', label: 'East',  open: true, closesAtTick: '' },
+    { id: 'W', label: 'West',  open: true, closesAtTick: '' },
+  ];
+  const [corridorSettings, setCorridorSettings] = useState(DEFAULT_CORRIDORS);
+
   const [params, setParams] = useState({
     threat:        6,
     elderPct:      20,  // stored as integer percent
@@ -849,6 +1015,10 @@ export default function EvacuationSim() {
       nbrInfluence:  params.nbrInfluence / 100,
       avgFamilySize: params.avgFamilySize,
       scenario:      overrideScenario ?? scenario,
+      corridorSettings: corridorSettings.map(c => ({
+        ...c,
+        closesAtTick: c.closesAtTick === '' ? null : (parseInt(c.closesAtTick, 10) || null),
+      })),
       canvasWidth:   W,
     });
     simRef.current = sim;
@@ -856,7 +1026,7 @@ export default function EvacuationSim() {
     const ctx = canvas.getContext("2d");
     drawSimulation(ctx, sim, W, CANVAS_HEIGHT, false, hoveredFamilyIdxRef.current);
     setStats(getStats(sim));
-  }, [params, scenario]);
+  }, [params, scenario, corridorSettings]);
 
   useEffect(() => { reset(); }, [reset]);
 
@@ -1048,6 +1218,56 @@ export default function EvacuationSim() {
           {finished && <span style={{ marginLeft: 8, color: "#0F6E56" }}>— complete</span>}
         </span>
       </div>
+
+      {/* Corridor controls — pedestrian and car only */}
+      {scenario !== 'train' && (
+        <div style={{ marginBottom: 8, background: "#fff", border: "0.5px solid rgba(0,0,0,0.12)", borderRadius: 10, padding: "8px 12px" }}>
+          <div style={{ fontSize: 9, fontWeight: 600, color: "#737069", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+            Exit corridors
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {corridorSettings.map((c, i) => (
+              <div key={c.id} style={{
+                flex: 1, borderRadius: 7, padding: "6px 8px",
+                background: c.open ? "rgba(29,158,117,0.07)" : "rgba(220,38,38,0.06)",
+                border: `0.5px solid ${c.open ? "rgba(29,158,117,0.35)" : "rgba(220,38,38,0.35)"}`,
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: c.open ? "#0F6E56" : "#A32D2D" }}>
+                    {c.label}
+                  </span>
+                  <button
+                    onClick={() => setCorridorSettings(prev => prev.map((s, j) => j === i ? { ...s, open: !s.open } : s))}
+                    style={{
+                      fontSize: 9, padding: "2px 6px", borderRadius: 3, cursor: "pointer", border: "none",
+                      background: c.open ? "#1D9E75" : "#DC2626", color: "#fff", fontWeight: 600,
+                    }}
+                  >
+                    {c.open ? "Open" : "Closed"}
+                  </button>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ fontSize: 9, color: "#737069", whiteSpace: "nowrap" }}>closes t:</span>
+                  <input
+                    type="number" min="1" placeholder="—"
+                    value={c.closesAtTick}
+                    disabled={!c.open}
+                    onChange={e => setCorridorSettings(prev => prev.map((s, j) => j === i ? { ...s, closesAtTick: e.target.value } : s))}
+                    style={{
+                      width: "100%", fontSize: 9, padding: "2px 4px",
+                      borderRadius: 3, border: "0.5px solid rgba(0,0,0,0.18)",
+                      opacity: c.open ? 1 : 0.4,
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 9, color: "#999895", marginTop: 6 }}>
+            Set "closes t:" to close a corridor mid-run. Leave blank to keep it open for the full simulation.
+          </div>
+        </div>
+      )}
 
       {/* Legend */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8, fontSize: 10, color: "#737069" }}>
