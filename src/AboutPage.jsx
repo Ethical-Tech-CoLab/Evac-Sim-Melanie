@@ -812,6 +812,102 @@ function Research() {
   );
 }
 
+function IHLBackground() {
+  return (
+    <div style={{ background: "#f8f7f4", padding: "60px 0" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "0 16px" }}>
+        <FadeIn>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#185FA5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+            Legal framework
+          </div>
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: "#0f1e36", marginBottom: 8, letterSpacing: "-0.3px" }}>
+            International Humanitarian Law and evacuation
+          </h2>
+          <p style={{ fontSize: 13, lineHeight: 1.8, color: "#5a5a55", marginBottom: 28, maxWidth: 560 }}>
+            Humanitarian evacuations in armed conflict are governed by IHL — the body of law that regulates the conduct of hostilities and protects persons who are not, or are no longer, participating in fighting. The simulation's mechanics connect directly to specific IHL obligations.
+          </p>
+        </FadeIn>
+
+        {/* Primary provisions — two-column cards matching Research section style */}
+        <div style={{ display: "flex", gap: 14, marginBottom: 14 }}>
+          {[
+            {
+              name: "Voluntary evacuation vs forced displacement",
+              ref: "Art. 17(1) AP II — Customary IHL Rule 129",
+              body: "IHL strictly distinguishes between voluntary civilian movement for safety and forced displacement ordered by a party to the conflict. Forced displacement is prohibited — it is a war crime. This simulation models only the voluntary case: households decide whether and when to leave based on information received, not coercion. The corridor system can model what happens when the choice is structurally removed.",
+            },
+            {
+              name: "Obligation to facilitate civilian movement",
+              ref: "Art. 58 AP I — Art. 17 AP II",
+              body: "Parties to a conflict must take precautionary measures to protect civilian populations, including facilitating evacuation when possible. The simulation's information node — broadcasting alerts and delivering confirmations — represents this obligation in practice. Low info clarity models its failure: a party that does not communicate clearly, consistently, or at all.",
+            },
+          ].map((r, i) => (
+            <FadeIn key={r.name} delay={i * 100} style={{ flex: 1 }}>
+              <div style={{ background: "#fff", borderRadius: 12, border: "0.5px solid rgba(0,0,0,0.1)", padding: "18px 18px 20px", height: "100%" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#0f1e36", marginBottom: 2 }}>{r.name}</div>
+                <div style={{ fontSize: 10, color: "#737069", marginBottom: 10 }}>{r.ref}</div>
+                <p style={{ fontSize: 12, lineHeight: 1.75, color: "#5a5a55", margin: 0 }}>{r.body}</p>
+              </div>
+            </FadeIn>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", gap: 14, marginBottom: 14 }}>
+          {[
+            {
+              name: "Special protection for vulnerable persons",
+              ref: "GC IV Art. 23 — AP I Arts. 8–17 — Customary Rule 138",
+              body: "IHL accords specific protection to the wounded and sick, children, pregnant women, and elderly persons — requiring that they receive priority in evacuation and humanitarian assistance. The simulation's elder and child mechanics directly reflect these categories: slower milling, slower movement, and greater sensitivity to information quality and corridor availability.",
+            },
+            {
+              name: "Humanitarian access and the two-channel model",
+              ref: "AP I Art. 70 — Customary IHL Rule 55",
+              body: "Parties must allow and facilitate the passage of humanitarian relief for civilians in need. In practice this means access for organisations like the ICRC — a distinct, neutral information channel operating alongside official government broadcasts. The simulation's two-channel model (official broadcast and social influence) can be extended to represent this third actor, whose access being granted or denied changes the information environment entirely.",
+            },
+          ].map((r, i) => (
+            <FadeIn key={r.name} delay={i * 100 + 200} style={{ flex: 1 }}>
+              <div style={{ background: "#fff", borderRadius: 12, border: "0.5px solid rgba(0,0,0,0.1)", padding: "18px 18px 20px", height: "100%" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#0f1e36", marginBottom: 2 }}>{r.name}</div>
+                <div style={{ fontSize: 10, color: "#737069", marginBottom: 10 }}>{r.ref}</div>
+                <p style={{ fontSize: 12, lineHeight: 1.75, color: "#5a5a55", margin: 0 }}>{r.body}</p>
+              </div>
+            </FadeIn>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", gap: 14, marginBottom: 14 }}>
+          {[
+            {
+              name: "Prohibition on siege as a method of warfare",
+              ref: "Customary IHL Rule 53 — AP I Art. 54",
+              body: "Deliberately starving or besieging a civilian population — which includes cutting off evacuation routes — is prohibited as a method of warfare. The corridor blocking mechanic models this situation: when all exits are closed, trapped members are precisely those whom this rule is designed to protect. The visual gap between families who evacuated and families who were trapped is a direct representation of what IHL is trying to prevent.",
+            },
+            {
+              name: "Effective advance warning",
+              ref: "AP I Art. 57(2)(c) — Customary IHL Rule 20",
+              body: "Before an attack that may affect civilians, parties must give effective advance warning unless circumstances do not permit. The simulation's threat level and info clarity sliders together model the quality of this warning: a high-threat, low-clarity scenario represents one where a warning was issued but was too vague or unreliable for households to act on — a pattern well-documented in recent conflicts.",
+            },
+          ].map((r, i) => (
+            <FadeIn key={r.name} delay={i * 100 + 400} style={{ flex: 1 }}>
+              <div style={{ background: "#fff", borderRadius: 12, border: "0.5px solid rgba(0,0,0,0.1)", padding: "18px 18px 20px", height: "100%" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#0f1e36", marginBottom: 2 }}>{r.name}</div>
+                <div style={{ fontSize: 10, color: "#737069", marginBottom: 10 }}>{r.ref}</div>
+                <p style={{ fontSize: 12, lineHeight: 1.75, color: "#5a5a55", margin: 0 }}>{r.body}</p>
+              </div>
+            </FadeIn>
+          ))}
+        </div>
+
+        <FadeIn delay={500}>
+          <p style={{ fontSize: 11, color: "#999895", marginTop: 6, lineHeight: 1.7 }}>
+            Treaty references: AP I — 1977 Additional Protocol I to the Geneva Conventions; AP II — 1977 Additional Protocol II; GC IV — 1949 Geneva Convention IV. Customary IHL Rules refer to the ICRC Customary IHL Study (Henckaerts &amp; Doswald-Beck, 2005). This simulation does not constitute legal advice and is intended for educational and research purposes only.
+          </p>
+        </FadeIn>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export default function AboutPage({ onLaunch }) {
@@ -857,6 +953,7 @@ export default function AboutPage({ onLaunch }) {
       <NeighbourInfluenceGuide />
       <TicksGuide />
       <Research />
+      <IHLBackground />
 
       {/* Final CTA */}
       <div style={{ background: "#0f1e36", padding: "56px 16px", textAlign: "center" }}>
