@@ -471,11 +471,111 @@ function ScenariosSection() {
   );
 }
 
+function CorridorGuide() {
+  return (
+    <div style={{ background: "#fff", padding: "60px 0" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "0 16px" }}>
+        <FadeIn>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#185FA5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+            Corridor blocking
+          </div>
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: "#0f1e36", marginBottom: 8, letterSpacing: "-0.3px" }}>
+            Simulating blocked and closing exit routes
+          </h2>
+          <p style={{ fontSize: 13, lineHeight: 1.8, color: "#5a5a55", marginBottom: 28, maxWidth: 560 }}>
+            Available in the <strong>Pedestrian</strong> and <strong>Car</strong> scenarios, the corridor system replaces the default radial evacuation with four named exit gates — North, South, East, and West. Families route toward their nearest open gate. Closing a gate mid-run forces rerouting, models ceasefire window expiry, and may trap the most vulnerable households.
+          </p>
+        </FadeIn>
+
+        {/* UI explainer */}
+        <FadeIn delay={60}>
+          <div style={{ background: "#f8f7f4", borderRadius: 12, padding: "18px 20px", marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#0f1e36", marginBottom: 14 }}>The corridor controls panel</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {[
+                {
+                  label: "Open / Closed toggle",
+                  col: "#1D9E75",
+                  body: "Each corridor starts Open. Click the button to close it before the simulation begins. Closed corridors are blocked for the entire run — families must reroute to a remaining open gate. If all four corridors are closed, all families will be trapped.",
+                },
+                {
+                  label: "closes t: field",
+                  col: "#D97706",
+                  body: "Enter a tick number to close the corridor dynamically mid-run. Leave blank to keep the corridor open for the full simulation. When the simulation reaches that tick, the gate closes, a red ripple fires on the canvas, and any families already evacuating toward it automatically reroute to the nearest remaining open gate.",
+                },
+              ].map(item => (
+                <div key={item.label} style={{ display: "flex", gap: 14, padding: "12px 14px", background: "#fff", borderRadius: 8, borderLeft: `3px solid ${item.col}` }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: item.col, minWidth: 140, flexShrink: 0, paddingTop: 1 }}>{item.label}</div>
+                  <div style={{ fontSize: 12, lineHeight: 1.75, color: "#5a5a55" }}>{item.body}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </FadeIn>
+
+        {/* Canvas visuals */}
+        <FadeIn delay={120}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#0f1e36", marginBottom: 10 }}>What you see on the canvas</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20 }}>
+            {[
+              { swatch: "#1D9E75", label: "Green gate",   desc: "Corridor is open. Families evacuating toward it are shown moving in this direction." },
+              { swatch: "#F59E0B", label: "Amber gate",   desc: "Corridor is open but will close within 5 ticks. A closing-time label (e.g. \"closes t:20\") appears near the gate." },
+              { swatch: "#DC2626", label: "Red gate + ✕", desc: "Corridor is closed or has been closed mid-run. A BLOCKED label appears alongside it." },
+              { swatch: "#DC2626", label: "Red ripple",   desc: "Emitted from the gate at the moment of mid-run closure — a brief visual alert so the event is never missed." },
+              { swatch: "#D97706", label: "Amber arc",    desc: "Drawn from a rerouting member toward their new target gate when their original corridor closes." },
+              { swatch: "#DC2626", label: "Red dashed ring", desc: "A pulsing ring around any member who is trapped — their milling phase complete but all corridors blocked. They cannot evacuate." },
+            ].map(row => (
+              <div key={row.label} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                <span style={{ width: 12, height: 12, borderRadius: "50%", background: row.swatch, flexShrink: 0, marginTop: 3 }} />
+                <div>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#3d3d3a" }}>{row.label} — </span>
+                  <span style={{ fontSize: 11, color: "#5a5a55", lineHeight: 1.65 }}>{row.desc}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </FadeIn>
+
+        {/* Pedestrian vs Car difference */}
+        <FadeIn delay={180}>
+          <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+            {[
+              {
+                icon: "🚶", title: "Pedestrian",
+                body: "Rerouting to a distant gate adds significant ticks. For households with elders or young children, a mid-run closure may mean they cannot reach any alternative gate before the simulation ends — directly illustrating why milling delays have life-or-death consequences in conflict evacuations.",
+              },
+              {
+                icon: "🚗", title: "Car",
+                body: "Vehicle speed makes rerouting much cheaper. The same corridor closure that traps pedestrian households causes only minor delay in the Car scenario. Running both scenarios with identical corridor settings shows how access to transport changes the humanitarian calculus.",
+              },
+            ].map(c => (
+              <div key={c.title} style={{ flex: 1, background: "#f8f7f4", borderRadius: 10, padding: "14px 16px" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{c.icon} {c.title}</div>
+                <p style={{ fontSize: 12, lineHeight: 1.75, color: "#5a5a55", margin: 0 }}>{c.body}</p>
+              </div>
+            ))}
+          </div>
+        </FadeIn>
+
+        {/* IHL callout */}
+        <FadeIn delay={240}>
+          <div style={{ background: "#FEF3E2", borderRadius: 10, padding: "14px 16px", border: "0.5px solid rgba(217,119,6,0.2)" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#92400E", marginBottom: 6 }}>Humanitarian relevance</div>
+            <p style={{ fontSize: 12, lineHeight: 1.75, color: "#78350F", margin: 0 }}>
+              In armed conflict, corridors are negotiated under IHL (Customary Rule 99; Art. 17 AP II) and may close at any moment due to ceasefire collapse, military advance, or checkpoint shutdown. The dynamic closing mechanic makes this time pressure visible and measurable: families that spend too long milling — because of elders, young children, or low information clarity — may never reach safety before the window closes. The gap between "finished milling" and "corridor still open" is the core humanitarian planning problem this feature models.
+            </p>
+          </div>
+        </FadeIn>
+      </div>
+    </div>
+  );
+}
+
 function HowToUse() {
   const steps = [
     { n: 1, title: "Choose a scenario", body: "Select Pedestrian, Car, or Train. Each changes milling times and movement speeds." },
     { n: 2, title: "Set your parameters", body: "Open the ⚙ Parameters panel and adjust sliders. Each shows a live hint describing the effect." },
-    { n: 3, title: "Run the simulation", body: "Press ▶ Run. Use Step for tick-by-tick observation. Hover a family to highlight it; click a node to inspect it." },
+    { n: 3, title: "Run the simulation", body: "Press ▶ Run. Use Step for tick-by-tick observation. Hover a family to highlight it; click a node to inspect it. In Pedestrian and Car scenarios, configure exit corridors — toggle gates open/closed and set optional closing ticks — before pressing Run." },
     { n: 4, title: "Read the summary", body: "When complete, a summary panel shows per-phase timing, the slowest family, a bar chart of family timelines, and a Neighbour Influence section breaking down how the social and official channels drove evacuations." },
     { n: 5, title: "Compare runs", body: "Pin any run in the Run History panel. Subsequent runs show whether they are faster or slower than the pinned baseline." },
   ];
@@ -752,6 +852,7 @@ export default function AboutPage({ onLaunch }) {
       <Channels />
       <PopulationFactors />
       <ScenariosSection />
+      <CorridorGuide />
       <HowToUse />
       <NeighbourInfluenceGuide />
       <TicksGuide />
