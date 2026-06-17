@@ -921,7 +921,7 @@ export default function AboutPage({ onLaunch }) {
             Agent-based evacuation model
           </div>
           <h1 style={{ fontSize: 34, fontWeight: 800, letterSpacing: "-0.5px", lineHeight: 1.2, marginBottom: 18 }}>
-            How information flow shapes who evacuates — and when
+            How information flow shapes who evacuates and when
           </h1>
           <p style={{ fontSize: 14, lineHeight: 1.85, opacity: 0.78, marginBottom: 32, maxWidth: 460, margin: "0 auto 32px" }}>
             An interactive simulation showing that evacuation failures are rarely about the will to leave. They happen when alerts arrive late, confirmations are scarce, and households with elders or young children can't keep pace.
