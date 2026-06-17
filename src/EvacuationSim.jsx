@@ -85,7 +85,7 @@ function findNearestOpenCorridor(sim, x, y) {
  * @param {string} params.scenario      - "pedestrian" | "car" | "train"
  * @param {number} canvasWidth
  */
-export function buildSimulation({ threat, elderPct, childPct, infoClar, nbrInfluence, avgFamilySize = 3, scenario = "pedestrian", corridorSettings = null, canvasWidth }) {
+export function buildSimulation({ threat, elderPct, childPct, infoClar, nbrInfluence, avgFamilySize = 3, scenario = "pedestrian", corridorSettings = null, threatRiseRate = 0, canvasWidth }) {
   const sc = SCENARIOS[scenario] ?? SCENARIOS.pedestrian;
   const W = canvasWidth;
   const H = CANVAS_HEIGHT;
@@ -227,6 +227,8 @@ export function buildSimulation({ threat, elderPct, childPct, infoClar, nbrInflu
     flashes:    [],  // confirmation-source rings at member position (13i/j)
     dashOffset: 0,   // animated neighbor edge offset (13e)
     socialInfluenceEvents: 0, // total times neighbour influence fired
+    threatRiseRate,
+    effectiveThreat: threat,  // updated each tick when threatRiseRate > 0
     corridors,
     closureEvents: [],        // transient red ripples when a corridor closes
   };
@@ -248,6 +250,10 @@ export function stepSimulation(sim, canvasW, canvasH) {
   const newLogs = [];
 
   sim.dashOffset++;
+  // Update effective threat if dynamic escalation is active
+  if (sim.threatRiseRate > 0) {
+    sim.effectiveThreat = clamp(sim.threat + (t * sim.threatRiseRate / 10), sim.threat, 10);
+  }
   sim.activeArcs    = sim.activeArcs.filter((a) => t - a.born < (a.social ? 7 : 8));
   sim.ripples       = sim.ripples.filter((r) => t - r.born < 7);
   sim.flashes       = sim.flashes.filter((f) => t - f.born < 5);
@@ -285,7 +291,7 @@ export function stepSimulation(sim, canvasW, canvasH) {
 
       // ── UNAWARE → SEEKING ──────────────────────────────────────────────────
       if (mem.status === STATUS.UNAWARE) {
-        const alertChance = clamp(sim.threat / 10 * 0.35 + (t / 30) * 0.15, 0.02, 0.55);
+        const alertChance = clamp(sim.effectiveThreat / 10 * 0.35 + (t / 30) * 0.15, 0.02, 0.55);
         if (Math.random() < alertChance) {
           mem.status = STATUS.SEEKING;
           mem.seekStart = t;
@@ -502,6 +508,15 @@ export function drawSimulation(ctx, sim, W, H, darkMode = false, highlightFamily
       ctx.fillStyle = darkMode ? "rgba(200,200,200,0.55)" : "rgba(60,60,60,0.5)";
       ctx.textAlign = "left";
       ctx.fillText(`${Math.round((reached / total) * 100)}% reached  ${Math.round((evacuated / total) * 100)}% evacuated`, 6, GH + 9);
+    }
+    // Dynamic threat indicator
+    if (sim.threatRiseRate > 0) {
+      const pct    = (sim.effectiveThreat - 1) / 9; // 0–1
+      const tAlpha = 0.45 + pct * 0.45;
+      ctx.font      = "8px system-ui, sans-serif";
+      ctx.fillStyle = `rgba(220,38,38,${tAlpha})`;
+      ctx.textAlign = "right";
+      ctx.fillText(`▲ Threat ${sim.effectiveThreat.toFixed(1)}/10`, W - 6, GH + 9);
     }
   }
 
@@ -982,12 +997,13 @@ export default function EvacuationSim() {
   const [corridorSettings, setCorridorSettings] = useState(DEFAULT_CORRIDORS);
 
   const [params, setParams] = useState({
-    threat:        6,
-    elderPct:      20,  // stored as integer percent
-    childPct:      20,
-    infoClar:      5,
-    nbrInfluence:  55,
-    avgFamilySize: 3,
+    threat:         6,
+    threatRiseRate: 0,
+    elderPct:       20,  // stored as integer percent
+    childPct:       20,
+    infoClar:       5,
+    nbrInfluence:   55,
+    avgFamilySize:  3,
   });
 
   // ── Build / reset ──────────────────────────────────────────────────────────
@@ -1008,8 +1024,9 @@ export default function EvacuationSim() {
     canvas.height = CANVAS_HEIGHT;
 
     const sim = buildSimulation({
-      threat:        params.threat,
-      elderPct:      params.elderPct / 100,
+      threat:         params.threat,
+      threatRiseRate: params.threatRiseRate / 10,
+      elderPct:       params.elderPct / 100,
       childPct:      params.childPct / 100,
       infoClar:      params.infoClar,
       nbrInfluence:  params.nbrInfluence / 100,
@@ -1143,6 +1160,11 @@ export default function EvacuationSim() {
           hint: v => v <= 3 ? "Low urgency — alerts spread slowly"
                  : v <= 6  ? "Moderate threat — some urgency to act"
                             : "High threat — alerts spread rapidly" },
+        { key: "threatRiseRate", label: "Threat rise rate", min: 0, max: 20, suffix: "",
+          hint: v => v === 0 ? "Static — threat stays fixed for the whole run"
+                 : v <= 8   ? `Slow escalation — +1 level every ${Math.round(100/v)} ticks`
+                 : v <= 14  ? `Moderate escalation — +1 level every ${Math.round(100/v)} ticks`
+                            : `Fast escalation — threat surges rapidly as time passes` },
         { key: "infoClar",  label: "Info clarity",  min: 1,  max: 10,  suffix: "",
           hint: v => v <= 3 ? "Poor clarity — many confirmations needed before families act"
                  : v <= 6  ? "Moderate clarity — standard confirmation requirements"
