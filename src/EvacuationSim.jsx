@@ -85,7 +85,7 @@ function findNearestOpenCorridor(sim, x, y) {
  * @param {string} params.scenario      - "pedestrian" | "car" | "train"
  * @param {number} canvasWidth
  */
-export function buildSimulation({ threat, elderPct, childPct, infoClar, nbrInfluence, avgFamilySize = 3, scenario = "pedestrian", corridorSettings = null, threatRiseRate = 0, canvasWidth }) {
+export function buildSimulation({ threat, elderPct, childPct, infoClar, nbrInfluence, avgFamilySize = 3, scenario = "pedestrian", corridorSettings = null, threatRiseRate = 0, humanitarianAccess = 0, canvasWidth }) {
   const sc = SCENARIOS[scenario] ?? SCENARIOS.pedestrian;
   const W = canvasWidth;
   const H = CANVAS_HEIGHT;
@@ -110,6 +110,14 @@ export function buildSimulation({ threat, elderPct, childPct, infoClar, nbrInflu
     y: H / 2,
     reliability: clamp(infoClar / 10, 0.1, 0.95),
     clarity: infoClar,
+  };
+
+  // Humanitarian actor node — independent reliability, reach limited by access parameter
+  const humNode = {
+    x: 45,
+    y: 42,
+    reliability: 0.75,
+    access: humanitarianAccess,
   };
 
   const PAD = 80;
@@ -181,6 +189,7 @@ export function buildSimulation({ threat, elderPct, childPct, infoClar, nbrInflu
         tx: 0,
         ty: 0,
         family: fi,
+        reachableByHum: Math.random() < humanitarianAccess,
       });
     }
 
@@ -216,6 +225,7 @@ export function buildSimulation({ threat, elderPct, childPct, infoClar, nbrInflu
     families,
     neighborEdges,
     infoNode,
+    humNode,
     threat,
     infoClar,
     nbrInfluence,
@@ -292,15 +302,23 @@ export function stepSimulation(sim, canvasW, canvasH) {
       // ── UNAWARE → SEEKING ──────────────────────────────────────────────────
       if (mem.status === STATUS.UNAWARE) {
         const alertChance = clamp(sim.effectiveThreat / 10 * 0.35 + (t / 30) * 0.15, 0.02, 0.55);
-        if (Math.random() < alertChance) {
+        const officialAlert = Math.random() < alertChance;
+        const humAlert = !officialAlert && sim.humNode && sim.humNode.access > 0 && mem.reachableByHum
+          && Math.random() < clamp(sim.effectiveThreat / 10 * 0.22 + (t / 45) * 0.09, 0.01, 0.4);
+
+        if (officialAlert || humAlert) {
           mem.status = STATUS.SEEKING;
           mem.seekStart = t;
           mem.confirmCount = 0;
-          mem.lastConfirmSource = 'official';
+          mem.lastConfirmSource = officialAlert ? 'official' : 'humanitarian';
           const tag = mem.isElder ? "[elder]" : mem.isChild ? "[child<5]" : "";
           newLogs.push(`t${t} ${mem.name} (${f.name}) ${tag} receives alert — needs ${mem.confirmNeeded} confirmation(s)`);
-          sim.activeArcs.push({ x1: sim.infoNode.x, y1: sim.infoNode.y, x2: mem.x, y2: mem.y, born: t, col: "#378ADD" });
-          sim.ripples.push({ born: t, clarity: sim.infoClar });
+          if (officialAlert) {
+            sim.activeArcs.push({ x1: sim.infoNode.x, y1: sim.infoNode.y, x2: mem.x, y2: mem.y, born: t, col: "#378ADD" });
+            sim.ripples.push({ born: t, clarity: sim.infoClar });
+          } else {
+            sim.activeArcs.push({ x1: sim.humNode.x, y1: sim.humNode.y, x2: mem.x, y2: mem.y, born: t, col: "#1D9E75" });
+          }
         }
       }
 
@@ -312,6 +330,17 @@ export function stepSimulation(sim, canvasW, canvasH) {
           mem.lastConfirmSource = 'official';
           sim.activeArcs.push({ x1: sim.infoNode.x, y1: sim.infoNode.y, x2: mem.x, y2: mem.y, born: t, col: "#EF9F27" });
           newLogs.push(`t${t} ${mem.name}: ${mem.confirmCount}/${mem.confirmNeeded} confirmations`);
+        }
+
+        // Humanitarian actor confirmation
+        if (sim.humNode && sim.humNode.access > 0 && mem.reachableByHum && mem.confirmCount < mem.confirmNeeded) {
+          const humConfirmChance = clamp(sim.humNode.reliability * 0.5, 0.08, 0.65);
+          if (Math.random() < humConfirmChance) {
+            mem.confirmCount = Math.min(mem.confirmNeeded, mem.confirmCount + 1);
+            mem.lastConfirmSource = 'humanitarian';
+            sim.activeArcs.push({ x1: sim.humNode.x, y1: sim.humNode.y, x2: mem.x, y2: mem.y, born: t, col: "#1D9E75" });
+            newLogs.push(`t${t} ${mem.name}: ${mem.confirmCount}/${mem.confirmNeeded} confirmations (Aid)`);
+          }
         }
 
         // Neighbor influence: seeing others mill/evac counts as a confirmation
@@ -334,9 +363,11 @@ export function stepSimulation(sim, canvasW, canvasH) {
           const delay = t - mem.seekStart;
           const why = mem.isElder ? "elder: extra prep" : mem.isChild ? "child<5: gathering kids" : "";
           newLogs.push(`t${t} ${mem.name} (${f.name}) confirmed after ${delay}t — milling${why ? " (" + why + ")" : ""}`);
-          mem.confirmedBySocial = mem.lastConfirmSource === 'social';
+          mem.confirmedByChannel = mem.lastConfirmSource;
           // 13j: flash colour shows which channel drove the final confirmation
-          const flashCol = mem.lastConfirmSource === 'social' ? '#D97706' : '#185FA5';
+          const flashCol = mem.lastConfirmSource === 'social' ? '#D97706'
+                         : mem.lastConfirmSource === 'humanitarian' ? '#1D9E75'
+                         : '#185FA5';
           sim.flashes.push({ x: mem.x, y: mem.y, col: flashCol, born: t });
           // 13i: cascade arc from source hub if social-driven
           if (mem.lastConfirmSource === 'social' && activeNeighbor) {
@@ -650,6 +681,27 @@ export function drawSimulation(ctx, sim, W, H, darkMode = false, highlightFamily
   ctx.fillStyle = darkMode ? "rgba(200,200,200,0.6)" : "rgba(80,80,80,0.55)";
   ctx.fillText(`${sc.icon} ${sc.label}`, nd.x, nd.y + 46);
 
+  // Humanitarian actor node (upper-left corner)
+  if (sim.humNode && sim.humNode.access > 0) {
+    const hnd = sim.humNode;
+    const hActive = sim.families.some(f => f.members.some(m => m.reachableByHum && m.status !== STATUS.UNAWARE));
+    ctx.save();
+    ctx.beginPath(); ctx.arc(hnd.x, hnd.y, hActive ? 15 : 12, 0, Math.PI * 2);
+    ctx.fillStyle   = hActive ? "#1D9E75" : "rgba(29,158,117,0.18)";
+    ctx.fill();
+    ctx.strokeStyle = "#0F6E56"; ctx.lineWidth = hActive ? 2 : 0.8; ctx.stroke();
+    ctx.font        = '500 9px system-ui, sans-serif';
+    ctx.fillStyle   = hActive ? "#fff" : "#0F6E56";
+    ctx.textAlign   = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Aid", hnd.x, hnd.y);
+    ctx.textBaseline = "alphabetic";
+    ctx.font        = "8px system-ui, sans-serif";
+    ctx.fillStyle   = darkMode ? "rgba(100,210,170,0.75)" : "#0F6E56";
+    ctx.fillText(`${Math.round(hnd.access * 100)}% access`, hnd.x, hnd.y + 24);
+    ctx.restore();
+  }
+
   // Members
   sim.families.forEach((f) => {
     ctx.globalAlpha = (highlightFamilyIdx === null || f.fi === highlightFamilyIdx) ? 1 : 0.15;
@@ -901,6 +953,7 @@ export function computeRunSummary(sim, params) {
   const allMill = allMs.filter(m => m.millingStart !== null && m.evacStart  !== null).map(m => m.evacStart   - m.millingStart);
   const allEvac = allMs.filter(m => m.evacStart   !== null && m.doneAt      !== null).map(m => m.doneAt      - m.evacStart);
 
+  const trappedCount = sim.families.flatMap(f => f.members).filter(m => m.trapped).length;
   const slowest = familyData.reduce((a, b) => a.lastDone > b.lastDone ? a : b);
   let bottleneck = "";
   if (slowest.elderCount > 0) bottleneck = `${slowest.elderCount} elder${slowest.elderCount > 1 ? "s" : ""}`;
@@ -908,17 +961,24 @@ export function computeRunSummary(sim, params) {
   if (!bottleneck) bottleneck = "large household";
 
   // Neighbour influence summary
-  const allMs2           = sim.families.flatMap(f => f.members);
-  const confirmedMembers = allMs2.filter(m => m.millingStart !== null);
-  const sociallyConfirmed   = confirmedMembers.filter(m => m.confirmedBySocial).length;
-  const officiallyConfirmed = confirmedMembers.filter(m => !m.confirmedBySocial).length;
-  const dominantChannel  = sociallyConfirmed > officiallyConfirmed ? "social" : "official";
+  const allMs2              = sim.families.flatMap(f => f.members);
+  const confirmedMembers    = allMs2.filter(m => m.millingStart !== null);
+  const sociallyConfirmed      = confirmedMembers.filter(m => m.confirmedByChannel === 'social').length;
+  const humanitarianConfirmed  = confirmedMembers.filter(m => m.confirmedByChannel === 'humanitarian').length;
+  const officiallyConfirmed    = confirmedMembers.filter(m => m.confirmedByChannel === 'official' || !m.confirmedByChannel).length;
+  const maxCh = Math.max(sociallyConfirmed, humanitarianConfirmed, officiallyConfirmed);
+  const dominantChannel = humanitarianConfirmed === maxCh && humanitarianConfirmed > officiallyConfirmed
+    ? "humanitarian"
+    : sociallyConfirmed === maxCh && sociallyConfirmed > officiallyConfirmed
+      ? "social"
+      : "official";
 
   const neighbourFamilyData = sim.families.map(f => ({
-    name:     f.name,
-    col:      f.col,
-    social:   f.members.filter(m => m.confirmedBySocial).length,
-    official: f.members.filter(m => m.millingStart !== null && !m.confirmedBySocial).length,
+    name:         f.name,
+    col:          f.col,
+    social:       f.members.filter(m => m.confirmedByChannel === 'social').length,
+    humanitarian: f.members.filter(m => m.confirmedByChannel === 'humanitarian').length,
+    official:     f.members.filter(m => m.millingStart !== null && (m.confirmedByChannel === 'official' || !m.confirmedByChannel)).length,
   }));
 
   return {
@@ -932,9 +992,11 @@ export function computeRunSummary(sim, params) {
     familyData,
     scenario: sim.scenario,
     params: { ...params },
+    trappedCount,
     // Neighbour influence
-    socialEvents:       sim.socialInfluenceEvents,
+    socialEvents:          sim.socialInfluenceEvents,
     sociallyConfirmed,
+    humanitarianConfirmed,
     officiallyConfirmed,
     dominantChannel,
     neighbourFamilyData,
@@ -964,6 +1026,114 @@ function hitTest(cx, cy, families) {
     }
   }
   return null;
+}
+
+// ─── Communications advice generator ─────────────────────────────────────────
+
+function generateCommsAdvice(rs) {
+  const items = [];
+  const p = rs.params ?? {};
+
+  // 1 — Message clarity / seeking bottleneck
+  if (rs.avgSeeking >= 6 || p.infoClar <= 4) {
+    items.push({
+      tag: "Message clarity",
+      col: "#185FA5",
+      bg: "#E6F1FB",
+      title: p.infoClar <= 4
+        ? "Simplify and pre-validate messages with the community"
+        : `Cut confirmation burden — avg. ${rs.avgSeeking} ticks in seeking`,
+      body: p.infoClar <= 4
+        ? "Ambiguous messages force households to seek multiple sources before acting — a dangerous delay in a fast-moving emergency. Test evacuation messages with community representatives before any crisis, use plain language in all spoken languages present, and pair official broadcasts with community-level repetition so each channel counts as an independent confirmation."
+        : `Households spent an average of ${rs.avgSeeking} ticks seeking confirmation before acting. Distributing identical messages through three or more simultaneous channels — radio, SMS, and a trusted community messenger — is operationally equivalent to reducing each household's confirmation threshold, because each channel provides independent evidence rather than waiting for the same source to repeat itself.`,
+    });
+  }
+
+  // 2 — Vulnerable population milling delays
+  if ((p.elderPct >= 15 || p.childPct >= 15) && rs.avgMilling >= 5) {
+    const who = p.elderPct >= 15 && p.childPct >= 15 ? "elders and young children"
+              : p.elderPct >= 15 ? "elders" : "young children";
+    items.push({
+      tag: "Vulnerable populations",
+      col: "#534AB7",
+      bg: "#EEECFB",
+      title: `Deploy direct outreach to households with ${who}`,
+      body: `Preparation delays from ${who} (avg. milling ${rs.avgMilling} ticks) are structural — they cannot be eliminated through better broadcast messaging alone. Pre-register these households before any emergency, dispatch a community liaison to them personally at the moment the alert is issued, and communicate assisted transport pickup points as part of the initial message. Physical presence converts passive waiting into active, supported preparation.`,
+    });
+  }
+
+  // 3 — Channel mix
+  if (rs.dominantChannel === 'social') {
+    items.push({
+      tag: "Channel strategy",
+      col: "#BA7517",
+      bg: "#FEF3E2",
+      title: "Formalise community anchor households as early-mover messengers",
+      body: "Social contagion drove most final confirmations — one household departing visibly was more persuasive than the official broadcast. Make this intentional: identify two or three highly-connected households per neighbourhood before any emergency, brief them privately so they receive the alert first, and ask them to begin visible preparation immediately. The cascade effect is faster and more credible than any broadcast you can produce.",
+    });
+  } else if (rs.dominantChannel === 'humanitarian') {
+    items.push({
+      tag: "Channel strategy",
+      col: "#0F6E56",
+      bg: "#E6F7F0",
+      title: "Protect humanitarian actor credibility and document access arrangements",
+      body: "Humanitarian channels were more influential than the official broadcast in this run — reflecting earned community trust. Safeguard it: ensure field teams never co-brand with military actors, carry written access authorisations at all times, and maintain messaging that is demonstrably independent of government communications. Trust built over months is lost in one instance of perceived partiality.",
+    });
+  } else {
+    items.push({
+      tag: "Channel strategy",
+      col: "#185FA5",
+      bg: "#E6F1FB",
+      title: "Build redundant channels now — before the crisis",
+      body: "Official broadcast dominated in this run. Single-channel dependency is fragile: infrastructure damage, deliberate jamming, or a single credibility incident leaves households with no fallback. Pre-establish community radio trees, SMS broadcast lists, and trained neighbourhood messengers so that the same message reaches every household through at least three independent paths simultaneously.",
+    });
+  }
+
+  // 4 — Humanitarian access restriction
+  if (p.humanitarianAccess != null && p.humanitarianAccess <= 35) {
+    items.push({
+      tag: "Access",
+      col: "#92400E",
+      bg: "#FEF3E2",
+      title: "Escalate access denials — and fill gaps with community intermediaries",
+      body: `At ${p.humanitarianAccess}% access, a substantial share of households are beyond direct reach of the humanitarian actor. Formally document every access denial referencing AP I Art. 70 and Customary IHL Rule 55, submit notifications through OCHA's Access Monitoring and Reporting Framework, and raise denials with protection cluster leads. In the interim, map community intermediaries — religious leaders, school teachers, health workers — who can relay humanitarian messaging to households in inaccessible areas without requiring your physical presence.`,
+    });
+  }
+
+  // 5 — Dynamic threat escalation
+  if (p.threatRiseRate >= 6) {
+    items.push({
+      tag: "Early warning",
+      col: "#A32D2D",
+      bg: "#FEE2E2",
+      title: "Issue graded warnings that communicate rate of change, not just current severity",
+      body: `A fast-rising threat compressed the safe window for households with longer milling times. A single alert at high-threat level is already too late for families who need extended preparation. Issue tiered warnings tied to escalation trajectory — not just "threat is high" but "conditions will be critical in approximately X minutes — households with limited mobility should begin preparing now." Time the first warning to give your most vulnerable households enough lead time to complete preparation before conditions peak.`,
+    });
+  }
+
+  // 6 — Trapped members
+  if (rs.trappedCount > 0) {
+    items.push({
+      tag: "Route communication",
+      col: "#A32D2D",
+      bg: "#FEE2E2",
+      title: "Communicate corridor status continuously and through every available channel",
+      body: `${rs.trappedCount} member${rs.trappedCount !== 1 ? "s were" : " was"} trapped when exit routes closed. In a real emergency this represents the direct cost of households receiving route information too late. Corridor status — open, closing, closed — must be broadcast as it changes through radio, SMS, and physical runners, not just at the start of the evacuation. Pre-designate a liaison at each exit point responsible for immediately notifying the coordination hub the moment access is restricted, so that message can reach households who have not yet departed.`,
+    });
+  }
+
+  // 7 — Transport in pedestrian scenario with vulnerable members
+  if (rs.scenario === 'pedestrian' && (p.elderPct >= 20 || p.childPct >= 15) && !items.some(i => i.tag === 'Vulnerable populations')) {
+    items.push({
+      tag: "Transport",
+      col: "#185FA5",
+      bg: "#E6F1FB",
+      title: "Include assisted-transport details in the initial alert",
+      body: "Pedestrian evacuation with mobility-limited members requires the alert to answer not just 'go' but 'how.' Include pickup point, departure window, and contact number in the first message — households should be moving toward a vehicle, not calculating whether they can sustain a walking route. If vehicle capacity is limited, prioritise households with multiple vulnerable members, who face compounding preparation and movement delays.",
+    });
+  }
+
+  return items.slice(0, 5);
 }
 
 // ─── React UI component ───────────────────────────────────────────────────────
@@ -997,13 +1167,14 @@ export default function EvacuationSim() {
   const [corridorSettings, setCorridorSettings] = useState(DEFAULT_CORRIDORS);
 
   const [params, setParams] = useState({
-    threat:         6,
-    threatRiseRate: 0,
-    elderPct:       20,  // stored as integer percent
-    childPct:       20,
-    infoClar:       5,
-    nbrInfluence:   55,
-    avgFamilySize:  3,
+    threat:               6,
+    threatRiseRate:       0,
+    elderPct:             20,  // stored as integer percent
+    childPct:             20,
+    infoClar:             5,
+    nbrInfluence:         55,
+    avgFamilySize:        3,
+    humanitarianAccess:   40,
   });
 
   // ── Build / reset ──────────────────────────────────────────────────────────
@@ -1029,9 +1200,10 @@ export default function EvacuationSim() {
       elderPct:       params.elderPct / 100,
       childPct:      params.childPct / 100,
       infoClar:      params.infoClar,
-      nbrInfluence:  params.nbrInfluence / 100,
-      avgFamilySize: params.avgFamilySize,
-      scenario:      overrideScenario ?? scenario,
+      nbrInfluence:         params.nbrInfluence / 100,
+      avgFamilySize:        params.avgFamilySize,
+      humanitarianAccess:   params.humanitarianAccess / 100,
+      scenario:             overrideScenario ?? scenario,
       corridorSettings: corridorSettings.map(c => ({
         ...c,
         closesAtTick: c.closesAtTick === '' ? null : (parseInt(c.closesAtTick, 10) || null),
@@ -1057,6 +1229,7 @@ export default function EvacuationSim() {
       sim.started = true;
       setLogs((prev) => [
         ...prev,
+        `📋 Warring parties have agreed to allow civilian evacuation (AP II Art. 17). A humanitarian corridor is in effect.`,
         `⚠ Alert issued — threat ${sim.threat}/10, clarity ${sim.infoClar}/10.`,
       ]);
     }
@@ -1169,6 +1342,11 @@ export default function EvacuationSim() {
           hint: v => v <= 3 ? "Poor clarity — many confirmations needed before families act"
                  : v <= 6  ? "Moderate clarity — standard confirmation requirements"
                             : "High clarity — families act quickly on first alert" },
+        { key: "humanitarianAccess", label: "Humanitarian access", min: 0, max: 100, suffix: "%",
+          hint: v => v === 0 ? "No humanitarian actor — official broadcast and social channels only"
+                 : v <= 40  ? "Partial access — aid actor reaches some households with higher reliability"
+                 : v <= 70  ? "Good access — humanitarian actor active across most of the community"
+                            : "Full access — humanitarian actor reaches all households (unobstructed)" },
       ],
     },
     {
@@ -1486,24 +1664,31 @@ export default function EvacuationSim() {
                   <div style={{ fontSize: 9, color: "#737069" }}>Socially confirmed</div>
                   <div style={{ fontSize: 16, fontWeight: 500, color: "#D97706" }}>{runSummary.sociallyConfirmed}</div>
                 </div>
+                {runSummary.humanitarianConfirmed > 0 && (
+                  <div style={{ flex: 1, background: "#fff", borderRadius: 6, padding: "5px 8px", textAlign: "center" }}>
+                    <div style={{ fontSize: 9, color: "#737069" }}>Aid confirmed</div>
+                    <div style={{ fontSize: 16, fontWeight: 500, color: "#1D9E75" }}>{runSummary.humanitarianConfirmed}</div>
+                  </div>
+                )}
                 <div style={{ flex: 1, background: "#fff", borderRadius: 6, padding: "5px 8px", textAlign: "center" }}>
                   <div style={{ fontSize: 9, color: "#737069" }}>Officially confirmed</div>
                   <div style={{ fontSize: 16, fontWeight: 500, color: "#185FA5" }}>{runSummary.officiallyConfirmed}</div>
                 </div>
                 <div style={{ flex: 1.4, background: "#fff", borderRadius: 6, padding: "5px 8px", textAlign: "center" }}>
                   <div style={{ fontSize: 9, color: "#737069" }}>Dominant channel</div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: runSummary.dominantChannel === 'social' ? "#D97706" : "#185FA5" }}>
-                    {runSummary.dominantChannel === 'social' ? '🟡 Social' : '🔵 Official'}
+                  <div style={{ fontSize: 12, fontWeight: 600, color: runSummary.dominantChannel === 'social' ? "#D97706" : runSummary.dominantChannel === 'humanitarian' ? "#1D9E75" : "#185FA5" }}>
+                    {runSummary.dominantChannel === 'social' ? '🟡 Social' : runSummary.dominantChannel === 'humanitarian' ? '🟢 Humanitarian' : '🔵 Official'}
                   </div>
                 </div>
               </div>
 
-              {/* Official vs Social split bar */}
+              {/* Three-channel split bar */}
               {(() => {
-                const total = runSummary.sociallyConfirmed + runSummary.officiallyConfirmed;
+                const total = runSummary.sociallyConfirmed + runSummary.officiallyConfirmed + runSummary.humanitarianConfirmed;
                 if (total === 0) return null;
-                const socialPct   = (runSummary.sociallyConfirmed   / total) * 100;
-                const officialPct = (runSummary.officiallyConfirmed / total) * 100;
+                const socialPct   = (runSummary.sociallyConfirmed      / total) * 100;
+                const humPct      = (runSummary.humanitarianConfirmed  / total) * 100;
+                const officialPct = (runSummary.officiallyConfirmed    / total) * 100;
                 return (
                   <div style={{ marginBottom: 12 }}>
                     <div style={{ fontSize: 9, color: "#737069", marginBottom: 4 }}>
@@ -1511,6 +1696,7 @@ export default function EvacuationSim() {
                     </div>
                     <div style={{ display: "flex", height: 14, borderRadius: 4, overflow: "hidden", background: "rgba(0,0,0,0.05)" }}>
                       <div style={{ width: `${officialPct}%`, background: "#378ADD" }} title={`Official: ${runSummary.officiallyConfirmed}`} />
+                      <div style={{ width: `${humPct}%`,      background: "#1D9E75" }} title={`Aid: ${runSummary.humanitarianConfirmed}`} />
                       <div style={{ width: `${socialPct}%`,   background: "#D97706" }} title={`Social: ${runSummary.sociallyConfirmed}`} />
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#737069", marginTop: 3 }}>
@@ -1518,6 +1704,12 @@ export default function EvacuationSim() {
                         <span style={{ width: 7, height: 7, background: "#378ADD", display: "inline-block", borderRadius: 1 }} />
                         Official {Math.round(officialPct)}%
                       </span>
+                      {humPct > 0 && (
+                        <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                          <span style={{ width: 7, height: 7, background: "#1D9E75", display: "inline-block", borderRadius: 1 }} />
+                          Aid {Math.round(humPct)}%
+                        </span>
+                      )}
                       <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
                         Social {Math.round(socialPct)}%
                         <span style={{ width: 7, height: 7, background: "#D97706", display: "inline-block", borderRadius: 1 }} />
@@ -1532,22 +1724,97 @@ export default function EvacuationSim() {
                 Per-family channel breakdown
               </div>
               {runSummary.neighbourFamilyData.map(fd => {
-                const total = fd.social + fd.official;
+                const total = fd.social + fd.official + (fd.humanitarian ?? 0);
                 if (total === 0) return null;
                 return (
                   <div key={fd.name} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
                     <div style={{ fontSize: 10, fontWeight: 500, color: fd.col, minWidth: 52 }}>{fd.name}</div>
                     <div style={{ flex: 1, display: "flex", height: 10, borderRadius: 3, overflow: "hidden", background: "rgba(0,0,0,0.05)" }}>
                       <div style={{ width: `${(fd.official / total) * 100}%`, background: "#378ADD" }} title={`Official: ${fd.official}`} />
-                      <div style={{ width: `${(fd.social   / total) * 100}%`, background: "#D97706" }} title={`Social: ${fd.social}`} />
+                      <div style={{ width: `${((fd.humanitarian ?? 0) / total) * 100}%`, background: "#1D9E75" }} title={`Aid: ${fd.humanitarian ?? 0}`} />
+                      <div style={{ width: `${(fd.social / total) * 100}%`, background: "#D97706" }} title={`Social: ${fd.social}`} />
                     </div>
-                    <div style={{ fontSize: 9, color: "#737069", minWidth: 60, textAlign: "right" }}>
-                      {fd.official}off · {fd.social}soc
+                    <div style={{ fontSize: 9, color: "#737069", minWidth: 72, textAlign: "right" }}>
+                      {fd.official}off{(fd.humanitarian ?? 0) > 0 ? ` · ${fd.humanitarian}aid` : ""} · {fd.social}soc
                     </div>
                   </div>
                 );
               })}
+
+              {/* Channel Trust Metric */}
+              {runSummary.params?.humanitarianAccess > 0 && (
+                <div style={{ marginTop: 12, background: "#E6F7F0", borderRadius: 8, padding: "11px 14px", border: "0.5px solid rgba(15,110,86,0.2)" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#0F6E56", marginBottom: 5 }}>
+                    Channel Trust Metric
+                  </div>
+                  {(() => {
+                    const hum  = runSummary.humanitarianConfirmed;
+                    const off  = runSummary.officiallyConfirmed;
+                    const inst = hum + off;
+                    const humPct = inst > 0 ? Math.round((hum / inst) * 100) : 0;
+                    const govPct = 100 - humPct;
+                    return (
+                      <div>
+                        <p style={{ fontSize: 11, lineHeight: 1.7, color: "#1D5C4A", margin: "0 0 8px 0" }}>
+                          {hum === 0
+                            ? `Humanitarian actor reached households but drove no final confirmations — the official broadcast arrived first or access was insufficient to close confirmations.`
+                            : hum >= off
+                              ? `Humanitarian actor drove ${humPct}% of institutional confirmations — high field access and community trust.`
+                              : `Government broadcast drove ${govPct}% of institutional confirmations — humanitarian actor influence below official reach. ${hum > 0 ? `Aid reached ${hum} member${hum !== 1 ? "s" : ""} but access constraints limited its impact.` : ""}`}
+                        </p>
+                        {inst > 0 && (
+                          <>
+                            <div style={{ display: "flex", height: 10, borderRadius: 3, overflow: "hidden", background: "rgba(0,0,0,0.07)" }}>
+                              <div style={{ width: `${govPct}%`, background: "#378ADD" }} title={`Government: ${off}`} />
+                              <div style={{ width: `${humPct}%`, background: "#1D9E75" }} title={`Humanitarian: ${hum}`} />
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#5a5a55", marginTop: 3 }}>
+                              <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                                <span style={{ width: 7, height: 7, background: "#378ADD", display: "inline-block", borderRadius: 1 }} />
+                                Govt {govPct}%
+                              </span>
+                              <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                                Aid {humPct}%
+                                <span style={{ width: 7, height: 7, background: "#1D9E75", display: "inline-block", borderRadius: 1 }} />
+                              </span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
+
+            {/* Communications recommendations */}
+            {(() => {
+              const advice = generateCommsAdvice(runSummary);
+              if (!advice.length) return null;
+              return (
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: "0.5px solid rgba(0,0,0,0.08)" }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: "#737069", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3 }}>
+                    Communications Recommendations
+                  </div>
+                  <div style={{ fontSize: 10, color: "#999895", marginBottom: 10 }}>
+                    Practical advice for humanitarian communicators, based on this run's outcomes.
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {advice.map((a, i) => (
+                      <div key={i} style={{ background: a.bg, borderRadius: 8, padding: "10px 12px", borderLeft: `3px solid ${a.col}` }}>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 7, marginBottom: 4, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 8, fontWeight: 700, color: a.col, textTransform: "uppercase", letterSpacing: "0.05em", background: "rgba(0,0,0,0.07)", borderRadius: 3, padding: "1px 5px", flexShrink: 0 }}>
+                            {a.tag}
+                          </span>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: "#0f1e36", lineHeight: 1.3 }}>{a.title}</span>
+                        </div>
+                        <div style={{ fontSize: 11, lineHeight: 1.72, color: "#5a5a55" }}>{a.body}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         );
       })()}

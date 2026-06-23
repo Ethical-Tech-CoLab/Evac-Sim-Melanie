@@ -471,6 +471,178 @@ function ScenariosSection() {
   );
 }
 
+function HumanitarianActorGuide() {
+  return (
+    <div style={{ background: "#fff", padding: "60px 0" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "0 16px" }}>
+        <FadeIn>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#0F6E56", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+            Humanitarian actor
+          </div>
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: "#0f1e36", marginBottom: 8, letterSpacing: "-0.3px" }}>
+            A third information channel
+          </h2>
+          <p style={{ fontSize: 13, lineHeight: 1.8, color: "#5a5a55", marginBottom: 28, maxWidth: 560 }}>
+            The <strong>Humanitarian access</strong> slider introduces a distinct humanitarian actor node alongside the official government broadcast. It represents neutral actors such as the ICRC, UNHCR, or NGO coordination bodies — organisations with their own comms networks, higher inherent reliability, but operational reach constrained by access negotiations with parties to the conflict.
+          </p>
+        </FadeIn>
+
+        {/* Humanitarian vs official comparison */}
+        <FadeIn delay={60}>
+          <div style={{ display: "flex", gap: 14, marginBottom: 14 }}>
+            {[
+              {
+                icon: "🔵",
+                title: "Official broadcast",
+                col: "#185FA5",
+                bg: "#E6F1FB",
+                points: [
+                  "Reliability set by the Info clarity slider",
+                  "Reaches all households simultaneously",
+                  "Represents government / military authority channel",
+                  "May be contested, weaponised, or ignored",
+                ],
+              },
+              {
+                icon: "🟢",
+                title: "Humanitarian actor",
+                col: "#0F6E56",
+                bg: "#E6F7F0",
+                points: [
+                  "Fixed higher reliability (75%) independent of clarity",
+                  "Reach limited by the Humanitarian access slider",
+                  "Represents ICRC / UNHCR / humanitarian coordination",
+                  "High access = full reach; low access = constrained by parties",
+                ],
+              },
+            ].map(c => (
+              <FadeIn key={c.title} style={{ flex: 1 }}>
+                <div style={{ background: "#fff", borderRadius: 12, border: "0.5px solid rgba(0,0,0,0.1)", overflow: "hidden", height: "100%" }}>
+                  <div style={{ background: c.bg, padding: "12px 16px", borderBottom: "0.5px solid rgba(0,0,0,0.07)" }}>
+                    <span style={{ fontSize: 18, marginRight: 7 }}>{c.icon}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: c.col }}>{c.title}</span>
+                  </div>
+                  <ul style={{ margin: 0, padding: "12px 16px 14px 28px", listStyle: "disc" }}>
+                    {c.points.map(p => (
+                      <li key={p} style={{ fontSize: 11, lineHeight: 1.75, color: "#5a5a55" }}>{p}</li>
+                    ))}
+                  </ul>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+        </FadeIn>
+
+        {/* How to configure */}
+        <FadeIn delay={100}>
+          <div style={{ background: "#f8f7f4", borderRadius: 12, padding: "18px 20px", marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#0f1e36", marginBottom: 12 }}>How to configure it</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {[
+                {
+                  step: "1", col: "#0F6E56",
+                  title: "Set Humanitarian access (0–100%)",
+                  body: "Open ⚙ Parameters and drag the Humanitarian access slider. At 0% the feature is off — only the official broadcast and social channel operate. At 40% roughly four in ten household members can be reached by the humanitarian actor. At 100% the actor reaches every member.",
+                },
+                {
+                  step: "2", col: "#0F6E56",
+                  title: "Run — watch for green arcs",
+                  body: "When the simulation runs, green arcs flow from the Aid node (upper-left corner of the canvas) to reachable members. Green confirmation flashes at a member's position mean the humanitarian actor drove their final confirmation. Blue flashes remain for officially-confirmed members.",
+                },
+                {
+                  step: "3", col: "#0F6E56",
+                  title: "Read the Channel Trust Metric",
+                  body: "After the run, the summary panel's Neighbour Influence section includes a Channel Trust Metric block. It shows the government-vs-humanitarian institutional split and interprets the result: high humanitarian share signals strong access and trust; low share signals access restrictions or credibility deficits.",
+                },
+              ].map((s, i) => (
+                <div key={s.step} style={{ display: "flex", gap: 14, paddingBottom: i < 2 ? 10 : 0, borderBottom: i < 2 ? "0.5px solid rgba(0,0,0,0.06)" : "none" }}>
+                  <div style={{
+                    width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
+                    background: s.col, color: "#fff",
+                    fontSize: 11, fontWeight: 700,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>{s.step}</div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#0f1e36", marginBottom: 3 }}>{s.title}</div>
+                    <div style={{ fontSize: 12, lineHeight: 1.7, color: "#5a5a55" }}>{s.body}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </FadeIn>
+
+        {/* Canvas visuals */}
+        <FadeIn delay={150}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#0f1e36", marginBottom: 10 }}>What you see on the canvas</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20 }}>
+            {[
+              { swatch: "#1D9E75", label: "Aid node (upper-left)", desc: "The humanitarian actor node. Idle when no reachable members are active; pulses and fills green when households it can reach have entered seeking or milling. Shows the configured access percentage below it." },
+              { swatch: "#1D9E75", label: "Green arcs",            desc: "Dashed arcs from the Aid node to a member mean the humanitarian actor sent that member an alert or a confirmation. Green flashes at a member's position confirm the aid channel drove their final confirmation." },
+              { swatch: "#378ADD", label: "Blue arcs / flashes",   desc: "Unchanged — still indicate official government broadcast alerts and confirmations, as before." },
+            ].map(row => (
+              <div key={row.label} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                <span style={{ width: 12, height: 12, borderRadius: "50%", background: row.swatch, flexShrink: 0, marginTop: 3 }} />
+                <div>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#3d3d3a" }}>{row.label} — </span>
+                  <span style={{ fontSize: 11, color: "#5a5a55", lineHeight: 1.65 }}>{row.desc}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </FadeIn>
+
+        {/* Channel Trust Metric */}
+        <FadeIn delay={200}>
+          <div style={{ background: "#f8f7f4", borderRadius: 12, padding: "16px 18px", marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#0f1e36", marginBottom: 8 }}>Channel Trust Metric — reading the summary</div>
+            <p style={{ fontSize: 12, lineHeight: 1.75, color: "#5a5a55", margin: "0 0 10px 0" }}>
+              The post-run summary adds a <strong>Channel Trust Metric</strong> block inside the Neighbour Influence section. It compares only the two <em>institutional</em> channels — government broadcast and humanitarian actor — and shows which drove the greater share of final confirmations.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[
+                {
+                  state: "Humanitarian dominant",
+                  col: "#0F6E56",
+                  bg: "#E6F7F0",
+                  desc: "The aid actor drove more final confirmations than the official broadcast. This models a situation of high field access and strong community trust in the humanitarian organisation — households found the aid channel more persuasive than the government channel.",
+                },
+                {
+                  state: "Government dominant",
+                  col: "#185FA5",
+                  bg: "#E6F1FB",
+                  desc: "The official broadcast drove more confirmations. The humanitarian actor had lower impact — either because access was constrained (low slider setting) or because the official channel was sufficiently clear and credible that the aid channel could not add further confirmations before members crossed the threshold.",
+                },
+                {
+                  state: "Aid confirmed = 0",
+                  col: "#737069",
+                  bg: "#f1efe8",
+                  desc: "The humanitarian actor reached households but drove no final confirmations at all. The official broadcast or social channel always got there first. This can happen even at moderate access levels if Info clarity is high — it models a situation where aid organisations are present but their information adds nothing to what official channels already delivered.",
+                },
+              ].map(s => (
+                <div key={s.state} style={{ display: "flex", gap: 12, padding: "10px 12px", background: s.bg, borderRadius: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: s.col, minWidth: 150, flexShrink: 0, paddingTop: 1 }}>{s.state}</div>
+                  <div style={{ fontSize: 11, lineHeight: 1.7, color: "#5a5a55" }}>{s.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </FadeIn>
+
+        {/* IHL callout */}
+        <FadeIn delay={260}>
+          <div style={{ background: "#FEF3E2", borderRadius: 10, padding: "14px 16px", border: "0.5px solid rgba(217,119,6,0.2)" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#92400E", marginBottom: 6 }}>Humanitarian relevance</div>
+            <p style={{ fontSize: 12, lineHeight: 1.75, color: "#78350F", margin: 0 }}>
+              Under AP I Art. 70 and Customary IHL Rule 55, parties must allow and facilitate the passage of humanitarian relief for civilians in need. In practice this means operational access for ICRC, UNHCR, and other neutral actors — access that is frequently denied, delayed, or conditionalised. The Humanitarian access slider directly models this: setting it below 100% represents a party restricting the humanitarian actor's reach. The Channel Trust Metric then shows what that restriction costs: fewer households reached, more reliance on official or social channels, and — where official clarity is also low — a slower, incomplete evacuation cascade. The gap between "humanitarian actor present" and "humanitarian actor influential" is the operational cost of access restrictions made visible.
+            </p>
+          </div>
+        </FadeIn>
+      </div>
+    </div>
+  );
+}
+
 function CorridorGuide() {
   return (
     <div style={{ background: "#fff", padding: "60px 0" }}>
@@ -563,6 +735,109 @@ function CorridorGuide() {
             <div style={{ fontSize: 12, fontWeight: 600, color: "#92400E", marginBottom: 6 }}>Humanitarian relevance</div>
             <p style={{ fontSize: 12, lineHeight: 1.75, color: "#78350F", margin: 0 }}>
               In armed conflict, corridors are negotiated under IHL (Customary Rule 99; Art. 17 AP II) and may close at any moment due to ceasefire collapse, military advance, or checkpoint shutdown. The dynamic closing mechanic makes this time pressure visible and measurable: families that spend too long milling — because of elders, young children, or low information clarity — may never reach safety before the window closes. The gap between "finished milling" and "corridor still open" is the core humanitarian planning problem this feature models.
+            </p>
+          </div>
+        </FadeIn>
+      </div>
+    </div>
+  );
+}
+
+function DynamicThreatGuide() {
+  return (
+    <div style={{ background: "#f8f7f4", padding: "60px 0" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "0 16px" }}>
+        <FadeIn>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#185FA5", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+            Dynamic threat
+          </div>
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: "#0f1e36", marginBottom: 8, letterSpacing: "-0.3px" }}>
+            Simulating an escalating emergency
+          </h2>
+          <p style={{ fontSize: 13, lineHeight: 1.8, color: "#5a5a55", marginBottom: 28, maxWidth: 560 }}>
+            By default the threat level stays fixed for the whole run. The <strong>Threat rise rate</strong> slider changes that: the effective threat increases every tick, compressing the window in which families can safely evacuate. Households that delay — because of milling, low information clarity, or vulnerable members — face a progressively more dangerous environment.
+          </p>
+        </FadeIn>
+
+        {/* How to set it */}
+        <FadeIn delay={60}>
+          <div style={{ background: "#fff", borderRadius: 12, border: "0.5px solid rgba(0,0,0,0.1)", padding: "18px 20px", marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#0f1e36", marginBottom: 12 }}>How to use it</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {[
+                {
+                  step: "1",
+                  title: "Open the Parameters panel",
+                  body: "Click ⚙ Parameters at the bottom of the simulation page to expand the slider panel.",
+                },
+                {
+                  step: "2",
+                  title: "Set your base Threat level",
+                  body: "Choose a starting threat using the Threat level slider (1–10). With dynamic escalation active, this is the level at tick 0 — the threat will rise from here.",
+                },
+                {
+                  step: "3",
+                  title: "Set the Threat rise rate",
+                  body: "Drag the Threat rise rate slider (0–20). The live hint below the slider shows how many ticks it takes for the threat to rise by one level at the chosen rate. A rate of 0 leaves threat static.",
+                },
+                {
+                  step: "4",
+                  title: "Press Run and watch the canvas",
+                  body: "When the rise rate is above 0, a red ▲ Threat N.N/10 indicator appears at the top-right of the canvas and grows brighter as the threat climbs. Families that are still milling or seeking when threat reaches 9–10 will find alerts spreading to the remaining unaware households very rapidly.",
+                },
+              ].map((s, i) => (
+                <div key={s.step} style={{ display: "flex", gap: 14, paddingBottom: i < 3 ? 10 : 0, borderBottom: i < 3 ? "0.5px solid rgba(0,0,0,0.06)" : "none" }}>
+                  <div style={{
+                    width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
+                    background: "#185FA5", color: "#fff",
+                    fontSize: 11, fontWeight: 700,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>{s.step}</div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#0f1e36", marginBottom: 3 }}>{s.title}</div>
+                    <div style={{ fontSize: 12, lineHeight: 1.7, color: "#5a5a55" }}>{s.body}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </FadeIn>
+
+        {/* Rate guide */}
+        <FadeIn delay={120}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#0f1e36", marginBottom: 10 }}>Choosing a rise rate</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20 }}>
+            {[
+              { range: "0",    label: "Static",   col: "#737069", desc: "No escalation. Threat stays at the base level for the full run. Default behaviour." },
+              { range: "1–5",  label: "Slow",     col: "#185FA5", desc: "Threat rises roughly +1 level every 20–100 ticks. Good for long runs where the pressure builds gradually — useful for studying whether social contagion can drive evacuations before the official alert becomes critical." },
+              { range: "6–12", label: "Moderate", col: "#BA7517", desc: "Threat rises +1 level every 8–16 ticks. The most informative range for most scenarios. Families with elders or young children who mill for 6–10 extra ticks will noticeably fall behind families without." },
+              { range: "13–20",label: "Fast",     col: "#A32D2D", desc: "Threat surges rapidly — +1 level every 5 ticks or faster. Models a front line advancing quickly or an imminent aerial threat. Most families must evacuate very early or risk being caught at maximum threat level." },
+            ].map(row => (
+              <div key={row.label} style={{ display: "flex", gap: 12, padding: "8px 12px", background: "#fff", borderRadius: 8, alignItems: "center" }}>
+                <div style={{ minWidth: 40, fontSize: 10, color: "#737069", textAlign: "center", background: "#f8f7f4", borderRadius: 4, padding: "3px 6px", fontFamily: "monospace" }}>{row.range}</div>
+                <div style={{ minWidth: 60, fontSize: 11, fontWeight: 700, color: row.col }}>{row.label}</div>
+                <div style={{ fontSize: 11, lineHeight: 1.65, color: "#5a5a55" }}>{row.desc}</div>
+              </div>
+            ))}
+          </div>
+        </FadeIn>
+
+        {/* Combining with corridors */}
+        <FadeIn delay={180}>
+          <div style={{ background: "#fff", borderRadius: 12, border: "0.5px solid rgba(0,0,0,0.1)", padding: "16px 18px", marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#0f1e36", marginBottom: 8 }}>Combining with corridor blocking</div>
+            <p style={{ fontSize: 12, lineHeight: 1.75, color: "#5a5a55", margin: 0 }}>
+              The most powerful use of dynamic threat is in combination with the corridor closing mechanic. Set a moderate rise rate, then set one or two corridors to close mid-run. Families that begin milling late — because of elders, children, or low info clarity — may find both the threat rising around them and their nearest corridor closing. This directly models the compressing humanitarian window: escalating danger plus shrinking exit options. The trapped-member count in the summary shows exactly how many households could not escape before both constraints converged.
+            </p>
+          </div>
+        </FadeIn>
+
+        {/* IHL callout */}
+        <FadeIn delay={240}>
+          <div style={{ background: "#FEF3E2", borderRadius: 10, padding: "14px 16px", border: "0.5px solid rgba(217,119,6,0.2)" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#92400E", marginBottom: 6 }}>Humanitarian relevance</div>
+            <p style={{ fontSize: 12, lineHeight: 1.75, color: "#78350F", margin: 0 }}>
+              Dynamic threat models situations where the warning period is finite and shrinking — a front line advancing toward a civilian area, an aerial campaign intensifying, or a siege tightening. Under AP I Art. 57(2)(c), parties must give effective advance warning before attacks that may affect civilians. A high rise rate with low starting threat models a situation where the warning was issued, but so late — or so unclearly — that vulnerable households could not complete the milling phase before the threat became critical. The simulation makes the cost of delayed or unclear warning immediately visible.
             </p>
           </div>
         </FadeIn>
@@ -946,9 +1221,11 @@ export default function AboutPage({ onLaunch }) {
         <StickyPhases />
       </div>
       <Channels />
+      <HumanitarianActorGuide />
       <PopulationFactors />
       <ScenariosSection />
       <CorridorGuide />
+      <DynamicThreatGuide />
       <HowToUse />
       <NeighbourInfluenceGuide />
       <TicksGuide />
