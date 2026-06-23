@@ -97,6 +97,33 @@ function PhaseIllustration({ step }) {
         );
       })}
 
+      {/* Corridor gates — exit routes at canvas edges */}
+      {[
+        { id: 'N', cx: 140, cy: 11,  w: 20, h:  9 },
+        { id: 'S', cx: 140, cy: 257, w: 20, h:  9 },
+        { id: 'E', cx: 270, cy: 140, w:  9, h: 20 },
+        { id: 'W', cx: 10,  cy: 140, w:  9, h: 20 },
+      ].map(g => {
+        const active = step >= 3;
+        return (
+          <g key={g.id} style={{ opacity: active ? 1 : 0.28, transition: "opacity 0.5s" }}>
+            <rect
+              x={g.cx - g.w / 2} y={g.cy - g.h / 2}
+              width={g.w} height={g.h} rx={2}
+              fill={active ? "rgba(29,158,117,0.22)" : "rgba(140,138,130,0.1)"}
+              stroke={active ? "#1D9E75" : "rgba(140,138,130,0.35)"}
+              strokeWidth={active ? 1.2 : 0.8}
+              style={{ transition: "all 0.5s" }}
+            />
+            <text x={g.cx} y={g.cy} textAnchor="middle" dominantBaseline="middle"
+              fontSize="6" fontWeight="700"
+              fill={active ? "#0F6E56" : "#9a9891"}
+              style={{ transition: "fill 0.5s" }}
+            >{g.id}</text>
+          </g>
+        );
+      })}
+
       {/* Info arc (seeking step) */}
       {step === 1 && (
         <line x1={CX} y1={CY} x2={featured.x} y2={featured.y}
@@ -107,6 +134,27 @@ function PhaseIllustration({ step }) {
         <line x1={NODES[0].x} y1={NODES[0].y} x2={NODES[5].x} y2={NODES[5].y}
           stroke="#EF9F27" strokeWidth={2} opacity={0.7} />
       )}
+      {/* Aid arc — humanitarian confirmation (step 2) */}
+      {step === 2 && (
+        <line x1={18} y1={26} x2={featured.x} y2={featured.y}
+          stroke="#1D9E75" strokeWidth={1.5} strokeDasharray="4 4" opacity={0.8} />
+      )}
+
+      {/* Aid node — humanitarian actor (upper-left) */}
+      <g>
+        <circle cx={18} cy={18}
+          r={step === 2 ? 10 : 8}
+          fill={step === 2 ? "#1D9E75" : "rgba(29,158,117,0.12)"}
+          stroke="#1D9E75"
+          strokeWidth={step >= 1 ? 1.4 : 0.7}
+          style={{ transition: "all 0.5s" }}
+        />
+        <text x={18} y={18} textAnchor="middle" dominantBaseline="middle"
+          fontSize="7" fontWeight="600"
+          fill={step === 2 ? "#fff" : "#0F6E56"}
+          style={{ transition: "fill 0.5s" }}
+        >Aid</text>
+      </g>
 
       {/* Info node hexagon */}
       <polygon points={hexPts(CX, CY, step === 1 ? 18 : 14)}
@@ -336,13 +384,39 @@ function Channels() {
   );
 }
 
+function ShapeSwatch({ fill, str, shape }) {
+  if (shape === "diamond") return (
+    <span style={{ width: 10, height: 10, flexShrink: 0, display: "inline-block",
+      background: fill, transform: "rotate(45deg)", border: `1px solid ${str}`, boxSizing: "border-box" }} />
+  );
+  if (shape === "triangle") return (
+    <span style={{ width: 10, height: 10, flexShrink: 0, display: "inline-block",
+      background: fill, clipPath: "polygon(50% 0%, 100% 100%, 0% 100%)" }} />
+  );
+  if (shape === "circle-cross") return (
+    <span style={{ position: "relative", width: 11, height: 11, flexShrink: 0, display: "inline-block" }}>
+      <span style={{ position: "absolute", inset: 0, borderRadius: "50%", background: fill, border: `1px solid ${str}` }} />
+      <svg viewBox="0 0 11 11" style={{ position: "absolute", inset: 0, width: 11, height: 11 }}>
+        <line x1="3" y1="5.5" x2="8" y2="5.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+        <line x1="5.5" y1="3" x2="5.5" y2="8" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    </span>
+  );
+  return (
+    <span style={{ width: 10, height: 10, flexShrink: 0, display: "inline-block",
+      background: fill, borderRadius: "50%", border: `1px solid ${str}` }} />
+  );
+}
+
 function PopulationFactors() {
   const bars = [
-    { label: "Adult",      millingExtra: 0, speed: 2.6, fill: "#888780", str: "#5F5E5A" },
-    { label: "Elder",      millingExtra: 3.5, speed: 1.8, fill: "#7F77DD", str: "#534AB7", shape: "circle" },
-    { label: "Child <5",   millingExtra: 4.5, speed: 1.5, fill: "#D4537E", str: "#993556", shape: "diamond" },
+    { label: "Adult",           millingExtra: 0,   speed: 2.6, fill: "#888780", str: "#5F5E5A",  shape: "circle" },
+    { label: "Elder",           millingExtra: 3.5, speed: 1.8, fill: "#7F77DD", str: "#534AB7",  shape: "circle" },
+    { label: "Child <5",        millingExtra: 4.5, speed: 1.5, fill: "#D4537E", str: "#993556",  shape: "diamond" },
+    { label: "Pregnant",        millingExtra: 3.5, speed: 2.0, fill: "#0891B2", str: "#0E7490",  shape: "circle-cross" },
+    { label: "Unaccomp. minor", millingExtra: 9.0, speed: 1.5, fill: "#EA580C", str: "#C2410C",  shape: "triangle" },
   ];
-  const maxMill = 4.5, maxSpeed = 2.6;
+  const maxMill = 9.0, maxSpeed = 2.6;
 
   return (
     <div style={{ background: "#fff", padding: "60px 0" }}>
@@ -352,10 +426,10 @@ function PopulationFactors() {
             Population factors
           </div>
           <h2 style={{ fontSize: 22, fontWeight: 700, color: "#0f1e36", marginBottom: 8, letterSpacing: "-0.3px" }}>
-            Age shapes the timeline
+            Vulnerability shapes the timeline
           </h2>
           <p style={{ fontSize: 13, lineHeight: 1.8, color: "#5a5a55", marginBottom: 32, maxWidth: 520 }}>
-            Elders and young children affect both how long households take to prepare and how fast they can move. The hub waits for its slowest member — so one elder can delay an entire family.
+            IHL-protected population categories — elders, children under 5, pregnant women, and unaccompanied minors — each have distinct mobility and preparation constraints that extend milling time and slow movement. The hub waits for its slowest member, so a single vulnerable individual can delay an entire household. Each type has its own canvas symbol.
           </p>
         </FadeIn>
         <div style={{ display: "flex", gap: 24 }}>
@@ -366,12 +440,8 @@ function PopulationFactors() {
             {bars.map(b => (
               <div key={b.label} style={{ marginBottom: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <span style={{
-                    width: 10, height: 10, flexShrink: 0, display: "inline-block",
-                    background: b.fill, borderRadius: b.shape === "diamond" ? 0 : "50%",
-                    transform: b.shape === "diamond" ? "rotate(45deg)" : "none",
-                  }} />
-                  <span style={{ fontSize: 11, color: "#3d3d3a", minWidth: 62 }}>{b.label}</span>
+                  <ShapeSwatch fill={b.fill} str={b.str} shape={b.shape} />
+                  <span style={{ fontSize: 11, color: "#3d3d3a", minWidth: 90 }}>{b.label}</span>
                   <span style={{ fontSize: 10, color: "#737069" }}>{b.millingExtra === 0 ? "none" : `+${b.millingExtra}t avg.`}</span>
                 </div>
                 <div style={{ height: 10, background: "rgba(0,0,0,0.06)", borderRadius: 5, overflow: "hidden" }}>
@@ -392,12 +462,8 @@ function PopulationFactors() {
             {bars.map(b => (
               <div key={b.label} style={{ marginBottom: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <span style={{
-                    width: 10, height: 10, flexShrink: 0, display: "inline-block",
-                    background: b.fill, borderRadius: b.shape === "diamond" ? 0 : "50%",
-                    transform: b.shape === "diamond" ? "rotate(45deg)" : "none",
-                  }} />
-                  <span style={{ fontSize: 11, color: "#3d3d3a", minWidth: 62 }}>{b.label}</span>
+                  <ShapeSwatch fill={b.fill} str={b.str} shape={b.shape} />
+                  <span style={{ fontSize: 11, color: "#3d3d3a", minWidth: 90 }}>{b.label}</span>
                   <span style={{ fontSize: 10, color: "#737069" }}>{b.speed} px/t</span>
                 </div>
                 <div style={{ height: 10, background: "rgba(0,0,0,0.06)", borderRadius: 5, overflow: "hidden" }}>
@@ -675,6 +741,11 @@ function CorridorGuide() {
                   col: "#D97706",
                   body: "Enter a tick number to close the corridor dynamically mid-run. Leave blank to keep the corridor open for the full simulation. When the simulation reaches that tick, the gate closes, a red ripple fires on the canvas, and any families already evacuating toward it automatically reroute to the nearest remaining open gate.",
                 },
+                {
+                  label: "opens t: field",
+                  col: "#185FA5",
+                  body: "Enter a tick number to schedule a corridor opening. The corridor starts the run closed and automatically opens at that tick — shown on canvas as an amber gate with an \"opens t:N\" label. Combine with a closes t: value to model a full ceasefire window: e.g. opens t:15, closes t:35 gives a 20-tick humanitarian window. Families who do not complete milling before the window closes may be trapped.",
+                },
               ].map(item => (
                 <div key={item.label} style={{ display: "flex", gap: 14, padding: "12px 14px", background: "#fff", borderRadius: 8, borderLeft: `3px solid ${item.col}` }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: item.col, minWidth: 140, flexShrink: 0, paddingTop: 1 }}>{item.label}</div>
@@ -691,9 +762,11 @@ function CorridorGuide() {
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20 }}>
             {[
               { swatch: "#1D9E75", label: "Green gate",   desc: "Corridor is open. Families evacuating toward it are shown moving in this direction." },
-              { swatch: "#F59E0B", label: "Amber gate",   desc: "Corridor is open but will close within 5 ticks. A closing-time label (e.g. \"closes t:20\") appears near the gate." },
+              { swatch: "#F59E0B", label: "Amber gate (closing soon)",   desc: "Corridor is open but will close within 5 ticks. A closing-time label (e.g. \"closes t:20\") appears near the gate." },
+              { swatch: "#D97706", label: "Amber gate + opens t:N",   desc: "Corridor has a scheduled opening — it starts closed and will open at the stated tick. Used to model ceasefire windows. The gate turns green with a ripple when the tick arrives." },
               { swatch: "#DC2626", label: "Red gate + ✕", desc: "Corridor is closed or has been closed mid-run. A BLOCKED label appears alongside it." },
               { swatch: "#DC2626", label: "Red ripple",   desc: "Emitted from the gate at the moment of mid-run closure — a brief visual alert so the event is never missed." },
+              { swatch: "#1D9E75", label: "Green ripple", desc: "Emitted from the gate when a scheduled corridor opens — the ceasefire window is now active." },
               { swatch: "#D97706", label: "Amber arc",    desc: "Drawn from a rerouting member toward their new target gate when their original corridor closes." },
               { swatch: "#DC2626", label: "Red dashed ring", desc: "A pulsing ring around any member who is trapped — their milling phase complete but all corridors blocked. They cannot evacuate." },
             ].map(row => (
@@ -839,6 +912,188 @@ function DynamicThreatGuide() {
             <p style={{ fontSize: 12, lineHeight: 1.75, color: "#78350F", margin: 0 }}>
               Dynamic threat models situations where the warning period is finite and shrinking — a front line advancing toward a civilian area, an aerial campaign intensifying, or a siege tightening. Under AP I Art. 57(2)(c), parties must give effective advance warning before attacks that may affect civilians. A high rise rate with low starting threat models a situation where the warning was issued, but so late — or so unclearly — that vulnerable households could not complete the milling phase before the threat became critical. The simulation makes the cost of delayed or unclear warning immediately visible.
             </p>
+          </div>
+        </FadeIn>
+      </div>
+    </div>
+  );
+}
+
+function ArmedConflictGuide() {
+  const features = [
+    {
+      num: "1",
+      col: "#185FA5",
+      bg: "#E6F1FB",
+      tag: "Ceasefire corridor window",
+      title: "Corridors that open on a schedule",
+      where: "Corridor controls panel — each gate card has an \"opens t:\" field",
+      body: `By default corridors start open (or permanently closed). Setting an "opens t:" value changes this: the corridor starts the run closed — shown as an amber gate with an "opens t:N" label — and opens automatically when the simulation reaches that tick, emitting a green ripple. Combine it with a "closes t:" value to model a full ceasefire window. For example, opens t:15, closes t:35 gives a 20-tick humanitarian passage. Families who have not finished milling by tick 35 face a closed gate when they try to evacuate. This makes milling delays directly consequential: the elder slowdown that costs 8 ticks in a static run can mean the difference between evacuation and entrapment when the window is narrow.`,
+      visuals: [
+        { swatch: "#D97706", label: "Amber gate + opens t:N", desc: "Corridor not yet open — will open at the stated tick." },
+        { swatch: "#1D9E75", label: "Green ripple",           desc: "Fired when the window opens. Canvas logs: \"✅ North corridor opened — humanitarian window in effect\"." },
+        { swatch: "#F59E0B", label: "Amber gate (closing soon)", desc: "Window is open but closes within 5 ticks — urgency indicator." },
+      ],
+      ihl: "Art. 17 AP II and Customary IHL Rule 99 require parties to allow civilians to leave and to facilitate humanitarian corridors. The opens t: / closes t: window directly models a negotiated passage with a fixed validity — and shows what happens when it expires before every vulnerable household has completed the milling phase.",
+    },
+    {
+      num: "2",
+      col: "#D97706",
+      bg: "#FEF3E2",
+      tag: "Checkpoint delays",
+      title: "Screening that slows evacuation",
+      where: "Armed conflict sliders → Checkpoint delay (0–15 t)",
+      body: `When this slider is above zero, 55% of members face a random delay of 1 to N ticks when they transition from milling to evacuation — representing security screening at a checkpoint on the route. The delay is added to their evacuation time before they begin moving. A value of 5 adds up to 5 ticks of hold. A value of 15 models a severely obstructed route where some members wait a long time before being cleared to move. The obstruction index in the Conflict metrics panel shows how many members were held.`,
+      visuals: [
+        { swatch: "#D97706", label: "Amber dot badge",        desc: "A small amber circle on any member currently in EVAC status who was held at a checkpoint." },
+        { swatch: "#D97706", label: "Log entry",              desc: "\"t12 Baraka (Kim) held at checkpoint (+4t)\" — the exact delay is recorded per member." },
+      ],
+      ihl: "Customary IHL Rule 99 prohibits disproportionate impediment to civilian movement. Checkpoints are lawful for security screening but must not be used to block civilian evacuation. The slider models the operational reality: even \"lawful\" screening imposes delay that compounds across a population, and households with elders or young children — who are already slower — absorb the greatest harm from any added hold time.",
+    },
+    {
+      num: "3",
+      col: "#DC2626",
+      bg: "#FEE2E2",
+      tag: "Misinformation",
+      title: "False confirmations that misdirect evacuees",
+      where: "Armed conflict sliders → Misinformation (0–100%)",
+      body: `During the SEEKING phase, each tick there is a probability (misinfoRate × 35%) that a member receives a false confirmation. False confirmations count toward the member's confirmation threshold just like genuine ones — they appear to satisfy the household's need for corroboration. But members whose final confirmation came from the misinformation channel are misdirected: when they transition to EVAC in a scenario with multiple open corridors, they are routed to a random non-nearest gate rather than the optimal one. This models being sent the wrong way — toward a blocked route or a longer path — because the information they acted on was false. At high misinformation rates, most confirmations are fabricated and most evacuees are misdirected. The channel split bar in the summary shows the misinformation share in red.`,
+      visuals: [
+        { swatch: "#DC2626", label: "Solid crimson arcs",    desc: "Misinformation confirmations are drawn as solid (not dashed) red arcs from the info node — visually distinct from dashed blue official arcs." },
+        { swatch: "#DC2626", label: "Red flash",             desc: "A red confirmation flash at a member's position when the misinformation channel drives their final confirmation." },
+        { swatch: "#DC2626", label: "Red segment in channel bar", desc: "The post-run channel split bar shows a red segment for misinfo-confirmed members alongside blue (official), green (humanitarian), and amber (social)." },
+      ],
+      ihl: "Article 37 AP I prohibits perfidy — acts designed to kill or injure by feigning civilian status or using protected symbols. Article 38 prohibits misuse of the Red Cross emblem. Deliberate false information about evacuation routes — issuing false \"all-clear\" messages or false corridor directions — falls squarely within this prohibition. The misinformation slider makes the consequence visible: households that received corroborated but false information may evacuate faster than those who received no information at all, but toward the wrong destination.",
+    },
+    {
+      num: "4",
+      col: "#737069",
+      bg: "#F1EFE8",
+      tag: "Infrastructure damage",
+      title: "Degrading information clarity over time",
+      where: "Armed conflict sliders → Infrastructure damage (0–20)",
+      body: `Communication infrastructure — cell towers, broadcast transmitters, internet exchanges — is frequently destroyed in conflict. This slider models the progressive degradation of information clarity over the course of a run. At zero, clarity stays fixed. At higher values, effective clarity falls each tick: at a rate of 10, a starting clarity of 7/10 will have fallen to around 4/10 by tick 45. This means confirmations become harder to obtain as the run progresses. Families that delay — for any reason — find it increasingly difficult to receive the confirmations they need. The info node label on the canvas shows the current effective clarity with a ▼ indicator when degradation is active.`,
+      visuals: [
+        { swatch: "#737069", label: "clarity X.X/10 ▼",     desc: "The info node label shows degraded effective clarity. The value updates each tick." },
+        { swatch: "#737069", label: "Slower confirmations",  desc: "Members in SEEKING phase receive confirmations less frequently as the run progresses — visible as longer gaps between confirmation log entries." },
+      ],
+      ihl: "Article 52 AP I and Customary IHL Rule 9 prohibit attacks on civilian objects, including communication infrastructure. When telecommunications infrastructure is destroyed — whether unlawfully targeted or as incidental damage — the information blackout that follows is a predictable humanitarian consequence. The infrastructure damage slider models this blackout and its compounding effect on late-moving households who are still seeking confirmation when clarity collapses.",
+    },
+    {
+      num: "5",
+      col: "#991B1B",
+      bg: "#FEE2E2",
+      tag: "Coercion risk",
+      title: "Forced displacement — evacuation before voluntary confirmation",
+      where: "Armed conflict sliders → Coercion risk (0–100%)",
+      body: `IHL distinguishes sharply between voluntary evacuation — a household that chooses to leave after receiving and acting on information — and forced displacement, which is prohibited. When this slider is above zero, some UNAWARE members are bypassed into MILLING directly, without completing the information-seeking phase. The probability scales with the effective threat level: at low threat it rarely fires; at maximum threat with high coercion risk, a significant fraction of households depart before they have confirmed the situation. Coerced members appear immediately in MILLING at the tick they are forced out. They may evacuate faster than voluntary evacuees — but they left without completing preparation, without confirming the route was safe, and without choosing to go. Each coercion event is logged with the member's name, household, and the Art. 17 AP II reference. The Conflict metrics panel counts total forced displacements for the run.`,
+      visuals: [
+        { swatch: "#DC2626", label: "Solid red ring",        desc: "A persistent red circle around any member who was coerced — visible throughout MILLING and EVAC status." },
+        { swatch: "#DC2626", label: "Red flash at coercion", desc: "A red flash fires at the member's position at the moment of forced departure." },
+        { swatch: "#DC2626", label: "Log entry",             desc: "\"t8 ⚠ Amara (Hassan) [elder] coerced into evacuation — forced displacement (Art. 17 AP II)\"" },
+      ],
+      ihl: "Article 17(1) AP II and Customary IHL Rule 129 prohibit ordering the displacement of civilians unless required for their own security or imperative military reasons, and even then only temporarily. Forced displacement is a war crime under the Rome Statute (Art. 8(2)(e)(viii)). The coercion risk slider models the scenario where this violation is occurring: households are being moved before they have chosen to go. The Conflict metrics panel's \"Forced displacement\" count is the direct humanitarian performance indicator — a non-zero value represents documented IHL violations in the simulated scenario.",
+    },
+  ];
+
+  return (
+    <div style={{ background: "#fff", padding: "60px 0" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "0 16px" }}>
+        <FadeIn>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#991B1B", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+            Armed conflict mechanics
+          </div>
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: "#0f1e36", marginBottom: 8, letterSpacing: "-0.3px" }}>
+            Checkpoints, misinformation, coercion, and ceasefire windows
+          </h2>
+          <p style={{ fontSize: 13, lineHeight: 1.8, color: "#5a5a55", marginBottom: 28, maxWidth: 560 }}>
+            The <strong>Armed conflict</strong> parameter group adds five mechanics that shift the simulation from a general disaster model to a conflict displacement model. Each can be used alone or combined. All five are grounded in IHL frameworks and humanitarian operational contexts. Find them in ⚙ Parameters under <em>Armed conflict</em>, and in the individual corridor gate controls.
+          </p>
+        </FadeIn>
+
+        {features.map((f, i) => (
+          <FadeIn key={f.num} delay={i * 80}>
+            <div style={{ background: f.bg, borderRadius: 12, padding: "18px 20px", marginBottom: 14, border: `0.5px solid ${f.col}22` }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
+                <div style={{
+                  width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
+                  background: f.col, color: "#fff",
+                  fontSize: 12, fontWeight: 700,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>{f.num}</div>
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: f.col, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>{f.tag}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#0f1e36", lineHeight: 1.3 }}>{f.title}</div>
+                </div>
+              </div>
+
+              <div style={{ fontSize: 11, color: "#737069", marginBottom: 8, fontStyle: "italic" }}>Control: {f.where}</div>
+
+              <p style={{ fontSize: 12, lineHeight: 1.8, color: "#5a5a55", margin: "0 0 14px 0" }}>{f.body}</p>
+
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#3d3d3a", marginBottom: 6 }}>Canvas visuals</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 12 }}>
+                {f.visuals.map(v => (
+                  <div key={v.label} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: "50%", background: v.swatch, flexShrink: 0, marginTop: 3 }} />
+                    <div>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: "#3d3d3a" }}>{v.label} — </span>
+                      <span style={{ fontSize: 11, color: "#5a5a55", lineHeight: 1.6 }}>{v.desc}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ borderTop: `0.5px solid ${f.col}33`, paddingTop: 10 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: f.col, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>IHL relevance</div>
+                <p style={{ fontSize: 11, lineHeight: 1.7, color: "#5a5a55", margin: 0 }}>{f.ihl}</p>
+              </div>
+            </div>
+          </FadeIn>
+        ))}
+
+        {/* Combined effects */}
+        <FadeIn delay={460}>
+          <div style={{ background: "#f8f7f4", borderRadius: 12, padding: "16px 18px", marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#0f1e36", marginBottom: 8 }}>Combining the features</div>
+            <p style={{ fontSize: 12, lineHeight: 1.75, color: "#5a5a55", margin: "0 0 8px 0" }}>
+              The most instructive runs combine multiple armed conflict mechanics. Try:
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {[
+                { label: "Ceasefire window + coercion", desc: "Set opens t:10, closes t:30 on one corridor; set coercion risk to 40%. Coerced households depart immediately and use the corridor while it's open. Voluntary households that take time to mill may find the window closed when they're ready to go — and potentially trapped." },
+                { label: "Misinformation + corridor blocking", desc: "Close two corridors before the run; set misinformation to 50%. Misinfo-confirmed members are routed to a random open corridor, but the misdirection is more likely to send them toward a blocked gate — increasing the trapped count sharply." },
+                { label: "Infrastructure damage + low clarity start", desc: "Set Info clarity to 4/10 and infrastructure damage to 12. Clarity collapses quickly, meaning confirmations become rare by tick 20. Only households that received early alerts and confirmed fast will complete evacuation. Late-moving households with elders will be unable to confirm at all." },
+                { label: "Full armed conflict scenario", desc: "Dynamic threat rise rate 8 + ceasefire window + checkpoint delay 6 + misinformation 30% + coercion 25%. This stacks all the IHL-relevant mechanics simultaneously: forced departure, obstructed routes, false information, degrading comms, and an escalating threat. The Conflict metrics panel shows all four violation indicators at once." },
+              ].map(item => (
+                <div key={item.label} style={{ display: "flex", gap: 10, padding: "8px 12px", background: "#fff", borderRadius: 8, alignItems: "flex-start" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#0f1e36", minWidth: 170, flexShrink: 0, paddingTop: 1 }}>{item.label}</div>
+                  <div style={{ fontSize: 11, lineHeight: 1.65, color: "#5a5a55" }}>{item.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </FadeIn>
+
+        {/* Conflict metrics panel */}
+        <FadeIn delay={540}>
+          <div style={{ background: "#FEE2E2", borderRadius: 10, padding: "14px 16px", border: "0.5px solid rgba(220,38,38,0.2)" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#991B1B", marginBottom: 6 }}>Reading the Conflict metrics panel</div>
+            <p style={{ fontSize: 12, lineHeight: 1.75, color: "#7F1D1D", margin: "0 0 8px 0" }}>
+              When any armed conflict mechanic produces an IHL-relevant outcome, a <strong>Conflict metrics</strong> section appears at the bottom of the post-run summary. It shows:
+            </p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {[
+                { label: "Forced displacement", col: "#DC2626", desc: "Count of members coerced into evacuation — each is an Art. 17 AP II violation in the simulated scenario." },
+                { label: "Checkpoint delays",   col: "#D97706", desc: "Count of members held at a checkpoint during evacuation — the obstruction index." },
+                { label: "Misinfo-confirmed",   col: "#DC2626", desc: "Count of members whose final confirmation came from the misinformation channel — may have been misdirected." },
+              ].map(m => (
+                <div key={m.label} style={{ flex: 1, minWidth: 140, background: "#fff", borderRadius: 8, padding: "8px 10px", border: `0.5px solid ${m.col}44` }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: m.col, marginBottom: 3 }}>{m.label}</div>
+                  <div style={{ fontSize: 11, lineHeight: 1.6, color: "#5a5a55" }}>{m.desc}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </FadeIn>
       </div>
@@ -1226,6 +1481,7 @@ export default function AboutPage({ onLaunch }) {
       <ScenariosSection />
       <CorridorGuide />
       <DynamicThreatGuide />
+      <ArmedConflictGuide />
       <HowToUse />
       <NeighbourInfluenceGuide />
       <TicksGuide />

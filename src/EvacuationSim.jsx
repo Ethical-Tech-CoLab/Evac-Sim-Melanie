@@ -12,10 +12,14 @@ const STATUS_COLORS = {
   [STATUS.DONE]:    { fill: "#1D9E75", stroke: "#0F6E56" },
 };
 
-const ELDER_FILL = "#7F77DD";
-const ELDER_STR  = "#534AB7";
-const CHILD_FILL = "#D4537E";
-const CHILD_STR  = "#993556";
+const ELDER_FILL    = "#7F77DD";
+const ELDER_STR     = "#534AB7";
+const CHILD_FILL    = "#D4537E";
+const CHILD_STR     = "#993556";
+const PREGNANT_FILL = "#0891B2";
+const PREGNANT_STR  = "#0E7490";
+const UNACCOMP_FILL = "#EA580C";
+const UNACCOMP_STR  = "#C2410C";
 
 const FAMILY_NAMES = ["Rivera", "Kim", "Okafor", "Hassan", "Novak", "Tanaka"];
 const PERSON_NAMES = ["Alex", "Jordan", "Sam", "Casey", "Morgan", "Riley", "Blake", "Avery"];
@@ -34,23 +38,29 @@ const SCENARIOS = {
   pedestrian: {
     label: "Pedestrian",
     icon: "🚶",
-    millingBase:  [2, 4], millingElder: [2, 5], millingChild: [3, 6],
-    evacBase:     [3, 6], evacElder:    [3, 7], evacChild:    [2, 5],
-    speeds: { child: 1.5, elder: 1.8, adult: 2.6 },
+    millingBase:    [2, 4], millingElder:    [2, 5], millingChild:    [3, 6],
+    millingPregnant:[2, 5], millingUnaccomp: [6, 12],
+    evacBase:       [3, 6], evacElder:       [3, 7], evacChild:       [2, 5],
+    evacPregnant:   [3, 6], evacUnaccomp:    [2, 5],
+    speeds: { child: 1.5, elder: 1.8, pregnant: 2.0, adult: 2.6 },
   },
   car: {
     label: "Car",
     icon: "🚗",
-    millingBase:  [1, 3], millingElder: [1, 2], millingChild: [2, 3],
-    evacBase:     [1, 2], evacElder:    [0, 1], evacChild:    [0, 1],
-    speeds: { child: 5.5, elder: 5.5, adult: 5.5 },
+    millingBase:    [1, 3], millingElder:    [1, 2], millingChild:    [2, 3],
+    millingPregnant:[1, 2], millingUnaccomp: [4, 8],
+    evacBase:       [1, 2], evacElder:       [0, 1], evacChild:       [0, 1],
+    evacPregnant:   [0, 1], evacUnaccomp:    [0, 1],
+    speeds: { child: 5.5, elder: 5.5, pregnant: 5.5, adult: 5.5 },
   },
   train: {
     label: "Train",
     icon: "🚆",
-    millingBase:  [4, 8], millingElder: [2, 4], millingChild: [1, 3],
-    evacBase:     [1, 2], evacElder:    [0, 1], evacChild:    [0, 1],
-    speeds: { child: 8.0, elder: 8.0, adult: 8.0 },
+    millingBase:    [4, 8], millingElder:    [2, 4], millingChild:    [1, 3],
+    millingPregnant:[2, 4], millingUnaccomp: [5, 10],
+    evacBase:       [1, 2], evacElder:       [0, 1], evacChild:       [0, 1],
+    evacPregnant:   [0, 1], evacUnaccomp:    [0, 1],
+    speeds: { child: 8.0, elder: 8.0, pregnant: 8.0, adult: 8.0 },
   },
 };
 
@@ -85,7 +95,7 @@ function findNearestOpenCorridor(sim, x, y) {
  * @param {string} params.scenario      - "pedestrian" | "car" | "train"
  * @param {number} canvasWidth
  */
-export function buildSimulation({ threat, elderPct, childPct, infoClar, nbrInfluence, avgFamilySize = 3, scenario = "pedestrian", corridorSettings = null, threatRiseRate = 0, humanitarianAccess = 0, canvasWidth }) {
+export function buildSimulation({ threat, elderPct, childPct, pregnantPct = 0, unaccompChildPct = 0, infoClar, nbrInfluence, avgFamilySize = 3, scenario = "pedestrian", corridorSettings = null, threatRiseRate = 0, humanitarianAccess = 0, checkpointDelay = 0, misinfoRate = 0, infraDegradeRate = 0, coercionRisk = 0, canvasWidth }) {
   const sc = SCENARIOS[scenario] ?? SCENARIOS.pedestrian;
   const W = canvasWidth;
   const H = CANVAS_HEIGHT;
@@ -99,11 +109,17 @@ export function buildSimulation({ threat, elderPct, childPct, infoClar, nbrInflu
     { id: 'S', label: 'South', x: W / 2, y: H - 18,  exitX: W / 2,   exitY: H+100 },
     { id: 'E', label: 'East',  x: W - 18, y: H / 2,  exitX: W + 100, exitY: H / 2 },
     { id: 'W', label: 'West',  x: 18,     y: H / 2,  exitX: -100,    exitY: H / 2 },
-  ].map(c => ({
-    ...c,
-    open:         settingsMap[c.id]?.open         ?? true,
-    closesAtTick: settingsMap[c.id]?.closesAtTick ?? null,
-  }));
+  ].map(c => {
+    const cfg = settingsMap[c.id] ?? {};
+    const hasOpenAt = cfg.opensAtTick != null;
+    return {
+      ...c,
+      open:         hasOpenAt ? false : (cfg.open ?? true),
+      closesAtTick: cfg.closesAtTick ?? null,
+      opensAtTick:  cfg.opensAtTick  ?? null,
+      pendingOpen:  hasOpenAt,
+    };
+  });
 
   const infoNode = {
     x: W / 2,
@@ -146,25 +162,39 @@ export function buildSimulation({ threat, elderPct, childPct, infoClar, nbrInflu
     const members = [];
     let childCount = 0;
     let elderCount = 0;
+    let pregnantCount = 0;
+    let unaccompCount = 0;
 
     for (let m = 0; m < size; m++) {
-      const isElder = m > 0 && Math.random() < elderPct;
-      const isChild = m > 0 && !isElder && Math.random() < childPct;
-      if (isElder) elderCount++;
-      if (isChild) childCount++;
+      const isElder        = m > 0 && Math.random() < elderPct;
+      const isChild        = m > 0 && !isElder && Math.random() < childPct;
+      const isPregnant     = m > 0 && !isElder && !isChild && Math.random() < pregnantPct;
+      const isUnaccompChild = m > 0 && !isElder && !isChild && !isPregnant && Math.random() < unaccompChildPct;
+      if (isElder)         elderCount++;
+      if (isChild)         childCount++;
+      if (isPregnant)      pregnantCount++;
+      if (isUnaccompChild) unaccompCount++;
 
       const mang   = (m / size) * Math.PI * 2 + rnd(-0.3, 0.3);
       const spread = m === 0 ? 0 : rnd(20, 32);
 
-      // Confirmations needed before milling: more for elders, more when info is unclear
-      const confirmNeeded = irnd(1, 3) + (infoClar < 4 ? irnd(1, 2) : 0) + (isElder ? 1 : 0);
+      // Confirmations needed: more for elders and unaccompanied children (need escort/reunification authority)
+      const confirmNeeded = irnd(1, 3) + (infoClar < 4 ? irnd(1, 2) : 0) + (isElder ? 1 : 0) + (isUnaccompChild ? 2 : 0);
 
       // Milling delay: time to prepare before departing
-      const millingExtra = isElder ? irnd(...sc.millingElder) : isChild ? irnd(...sc.millingChild) : 0;
+      const millingExtra = isElder         ? irnd(...sc.millingElder)
+                         : isChild         ? irnd(...sc.millingChild)
+                         : isPregnant      ? irnd(...sc.millingPregnant)
+                         : isUnaccompChild ? irnd(...sc.millingUnaccomp)
+                         : 0;
       const millingTicks = irnd(...sc.millingBase) + millingExtra;
 
       // Evacuation travel time
-      const evacExtra = isElder ? irnd(...sc.evacElder) : isChild ? irnd(...sc.evacChild) : 0;
+      const evacExtra = isElder         ? irnd(...sc.evacElder)
+                      : isChild         ? irnd(...sc.evacChild)
+                      : isPregnant      ? irnd(...sc.evacPregnant)
+                      : isUnaccompChild ? irnd(...sc.evacUnaccomp)
+                      : 0;
       const evacTicks = irnd(...sc.evacBase) + evacExtra;
 
       members.push({
@@ -175,6 +205,8 @@ export function buildSimulation({ threat, elderPct, childPct, infoClar, nbrInflu
         oy: hy + Math.sin(mang) * spread,
         isElder,
         isChild,
+        isPregnant,
+        isUnaccompChild,
         isHub: m === 0,
         name: m === 0 ? name : pick(PERSON_NAMES),
         status: STATUS.UNAWARE,
@@ -204,7 +236,7 @@ export function buildSimulation({ threat, elderPct, childPct, infoClar, nbrInflu
     members[0].millingTicks = Math.max(...members.map((m) => m.millingTicks));
     members[0].evacTicks    = Math.max(...members.map((m) => m.evacTicks));
 
-    return { name, members, fi, col: FAMILY_COLORS[fi], childCount, elderCount };
+    return { name, members, fi, col: FAMILY_COLORS[fi], childCount, elderCount, pregnantCount, unaccompCount };
   });
 
   // Neighbor edges: ring + skip-one connections
@@ -241,6 +273,13 @@ export function buildSimulation({ threat, elderPct, childPct, infoClar, nbrInflu
     effectiveThreat: threat,  // updated each tick when threatRiseRate > 0
     corridors,
     closureEvents: [],        // transient red ripples when a corridor closes
+    effectiveInfoClar: infoClar,
+    openEvents:    [],
+    coercedCount:  0,
+    checkpointDelay,
+    misinfoRate,
+    infraDegradeRate,
+    coercionRisk,
   };
 }
 
@@ -268,6 +307,13 @@ export function stepSimulation(sim, canvasW, canvasH) {
   sim.ripples       = sim.ripples.filter((r) => t - r.born < 7);
   sim.flashes       = sim.flashes.filter((f) => t - f.born < 5);
   sim.closureEvents = (sim.closureEvents || []).filter((e) => t - e.born < 9);
+  sim.openEvents = (sim.openEvents || []).filter(e => t - e.born < 7);
+
+  // Infrastructure degradation
+  if (sim.infraDegradeRate > 0) {
+    sim.effectiveInfoClar = Math.max(1, sim.infoClar - t * sim.infraDegradeRate / 15);
+    sim.infoNode.reliability = clamp(sim.effectiveInfoClar / 10, 0.05, 0.9);
+  }
 
   // ── Corridor closure check ─────────────────────────────────────────────────
   (sim.corridors || []).forEach((c) => {
@@ -295,6 +341,16 @@ export function stepSimulation(sim, canvasW, canvasH) {
     }
   });
 
+  // ── Corridor opening check (humanitarian ceasefire window) ─────────────────
+  (sim.corridors || []).forEach((c) => {
+    if (c.pendingOpen && c.opensAtTick !== null && t >= c.opensAtTick) {
+      c.open = true;
+      c.pendingOpen = false;
+      newLogs.push(`t${t} ✅ ${c.label} corridor opened — humanitarian window in effect`);
+      (sim.openEvents = sim.openEvents || []).push({ x: c.x, y: c.y, born: t });
+    }
+  });
+
   sim.families.forEach((f) => {
     f.members.forEach((mem) => {
       if (mem.status === STATUS.DONE) return;
@@ -311,7 +367,7 @@ export function stepSimulation(sim, canvasW, canvasH) {
           mem.seekStart = t;
           mem.confirmCount = 0;
           mem.lastConfirmSource = officialAlert ? 'official' : 'humanitarian';
-          const tag = mem.isElder ? "[elder]" : mem.isChild ? "[child<5]" : "";
+          const tag = mem.isElder ? "[elder]" : mem.isChild ? "[child<5]" : mem.isPregnant ? "[pregnant]" : mem.isUnaccompChild ? "[unaccomp. minor]" : "";
           newLogs.push(`t${t} ${mem.name} (${f.name}) ${tag} receives alert — needs ${mem.confirmNeeded} confirmation(s)`);
           if (officialAlert) {
             sim.activeArcs.push({ x1: sim.infoNode.x, y1: sim.infoNode.y, x2: mem.x, y2: mem.y, born: t, col: "#378ADD" });
@@ -320,11 +376,27 @@ export function stepSimulation(sim, canvasW, canvasH) {
             sim.activeArcs.push({ x1: sim.humNode.x, y1: sim.humNode.y, x2: mem.x, y2: mem.y, born: t, col: "#1D9E75" });
           }
         }
+
+        // Coercion: forced displacement before voluntary threshold
+        if (!officialAlert && !humAlert && sim.coercionRisk > 0) {
+          const coercChance = clamp(sim.effectiveThreat / 10 * sim.coercionRisk * 0.008, 0, 0.06);
+          if (Math.random() < coercChance) {
+            mem.status = STATUS.MILLING;
+            mem.millingStart = t;
+            mem.seekStart = t;
+            mem.coerced = true;
+            mem.confirmedByChannel = 'coerced';
+            sim.coercedCount = (sim.coercedCount ?? 0) + 1;
+            const tag = mem.isElder ? "[elder]" : mem.isChild ? "[child<5]" : mem.isPregnant ? "[pregnant]" : mem.isUnaccompChild ? "[unaccomp. minor]" : "";
+            newLogs.push(`t${t} ⚠ ${mem.name} (${f.name}) ${tag} coerced into evacuation — forced displacement (Art. 17 AP II)`);
+            sim.flashes.push({ x: mem.x, y: mem.y, col: '#DC2626', born: t });
+          }
+        }
       }
 
       // ── SEEKING → MILLING ─────────────────────────────────────────────────
       else if (mem.status === STATUS.SEEKING) {
-        const confirmChance = clamp(sim.infoNode.reliability * 0.45 + (sim.infoClar / 10) * 0.2, 0.05, 0.75);
+        const confirmChance = clamp(sim.infoNode.reliability * 0.45 + ((sim.effectiveInfoClar ?? sim.infoClar) / 10) * 0.2, 0.05, 0.75);
         if (Math.random() < confirmChance) {
           mem.confirmCount++;
           mem.lastConfirmSource = 'official';
@@ -340,6 +412,16 @@ export function stepSimulation(sim, canvasW, canvasH) {
             mem.lastConfirmSource = 'humanitarian';
             sim.activeArcs.push({ x1: sim.humNode.x, y1: sim.humNode.y, x2: mem.x, y2: mem.y, born: t, col: "#1D9E75" });
             newLogs.push(`t${t} ${mem.name}: ${mem.confirmCount}/${mem.confirmNeeded} confirmations (Aid)`);
+          }
+        }
+
+        // Misinformation channel — false confirmations that may misdirect
+        if (sim.misinfoRate > 0 && mem.confirmCount < mem.confirmNeeded) {
+          if (Math.random() < sim.misinfoRate * 0.35) {
+            mem.confirmCount = Math.min(mem.confirmNeeded, mem.confirmCount + 1);
+            mem.lastConfirmSource = 'misinfo';
+            sim.activeArcs.push({ x1: sim.infoNode.x, y1: sim.infoNode.y, x2: mem.x, y2: mem.y, born: t, col: '#DC2626', misinfo: true });
+            newLogs.push(`t${t} ${mem.name}: false confirmation — ${mem.confirmCount}/${mem.confirmNeeded} (misinformation)`);
           }
         }
 
@@ -361,12 +443,13 @@ export function stepSimulation(sim, canvasW, canvasH) {
           mem.status = STATUS.MILLING;
           mem.millingStart = t;
           const delay = t - mem.seekStart;
-          const why = mem.isElder ? "elder: extra prep" : mem.isChild ? "child<5: gathering kids" : "";
+          const why = mem.isElder ? "elder: extra prep" : mem.isChild ? "child<5: gathering kids" : mem.isPregnant ? "pregnant: slower prep" : mem.isUnaccompChild ? "unaccomp. minor: awaiting escort" : "";
           newLogs.push(`t${t} ${mem.name} (${f.name}) confirmed after ${delay}t — milling${why ? " (" + why + ")" : ""}`);
           mem.confirmedByChannel = mem.lastConfirmSource;
           // 13j: flash colour shows which channel drove the final confirmation
           const flashCol = mem.lastConfirmSource === 'social' ? '#D97706'
                          : mem.lastConfirmSource === 'humanitarian' ? '#1D9E75'
+                         : mem.lastConfirmSource === 'misinfo' ? '#DC2626'
                          : '#185FA5';
           sim.flashes.push({ x: mem.x, y: mem.y, col: flashCol, born: t });
           // 13i: cascade arc from source hub if social-driven
@@ -380,23 +463,42 @@ export function stepSimulation(sim, canvasW, canvasH) {
       // ── MILLING → EVAC ────────────────────────────────────────────────────
       else if (mem.status === STATUS.MILLING) {
         if (t - mem.millingStart >= mem.millingTicks) {
-          const corridor = findNearestOpenCorridor(sim, mem.x, mem.y);
+          // Misinfo routing: if final confirmation was misinfo and multiple corridors open, pick non-nearest
+          const allOpen = (sim.corridors || []).filter(c => c.open);
+          let corridor = null;
+          if (sim.corridors.length > 0) {
+            if (mem.confirmedByChannel === 'misinfo' && allOpen.length > 1) {
+              const nearest = findNearestOpenCorridor(sim, mem.x, mem.y);
+              const others  = allOpen.filter(c => c.id !== nearest?.id);
+              corridor = others[Math.floor(Math.random() * others.length)];
+            } else {
+              corridor = findNearestOpenCorridor(sim, mem.x, mem.y);
+            }
+          }
           if (sim.corridors.length > 0 && !corridor) {
-            // All corridors blocked — member is trapped
             if (!mem.trapped) {
               mem.trapped = true;
               newLogs.push(`t${t} ${mem.name} (${f.name}) trapped — all corridors blocked`);
             }
           } else {
+            // Checkpoint delay (applied once when EVAC begins)
+            if (sim.checkpointDelay > 0 && !mem.checkpointed) {
+              mem.checkpointed = true;
+              if (Math.random() < 0.55) {
+                const cpDelay = 1 + Math.floor(Math.random() * sim.checkpointDelay);
+                mem.evacTicks += cpDelay;
+                newLogs.push(`t${t} ${mem.name} held at checkpoint (+${cpDelay}t)`);
+              }
+            }
             mem.status = STATUS.EVAC;
             mem.evacStart = t;
             if (corridor) {
               mem.corridorId = corridor.id;
               mem.tx = corridor.exitX;
               mem.ty = corridor.exitY;
-              newLogs.push(`t${t} ${mem.name} (${f.name}) evacuating via ${corridor.label} corridor`);
+              const misdirNote = mem.confirmedByChannel === 'misinfo' && allOpen.length > 1 ? ' (misdirected — misinformation)' : '';
+              newLogs.push(`t${t} ${mem.name} (${f.name}) evacuating via ${corridor.label} corridor${misdirNote}`);
             } else {
-              // Train scenario — radial evacuation
               const ang = Math.atan2(mem.y - canvasH / 2, mem.x - canvasW / 2);
               mem.tx = mem.x + Math.cos(ang) * 300;
               mem.ty = mem.y + Math.sin(ang) * 300;
@@ -409,7 +511,10 @@ export function stepSimulation(sim, canvasW, canvasH) {
       // ── EVAC → DONE ───────────────────────────────────────────────────────
       else if (mem.status === STATUS.EVAC) {
         const { speeds } = SCENARIOS[sim.scenario] ?? SCENARIOS.pedestrian;
-        const spd = mem.isChild ? speeds.child : mem.isElder ? speeds.elder : speeds.adult;
+        const spd = (mem.isChild || mem.isUnaccompChild) ? speeds.child
+                  : mem.isElder ? speeds.elder
+                  : mem.isPregnant ? speeds.pregnant
+                  : speeds.adult;
         const dx = mem.tx - mem.x;
         const dy = mem.ty - mem.y;
         const d  = Math.hypot(dx, dy);
@@ -618,8 +723,8 @@ export function drawSimulation(ctx, sim, W, H, darkMode = false, highlightFamily
       ctx.lineTo(a.x2, a.y2);
     }
     ctx.strokeStyle = a.col + hex;
-    ctx.lineWidth   = a.social ? (a.cascade ? 2.5 : 2) : 1.5;
-    ctx.setLineDash(a.social ? [5, 4] : [3, 5]);
+    ctx.lineWidth   = a.social ? (a.cascade ? 2.5 : 2) : a.misinfo ? 2 : 1.5;
+    ctx.setLineDash(a.social ? [5, 4] : a.misinfo ? [] : [3, 5]);
     ctx.stroke();
     ctx.setLineDash([]);
 
@@ -675,7 +780,10 @@ export function drawSimulation(ctx, sim, W, H, darkMode = false, highlightFamily
   ctx.fillText("Info", nd.x, nd.y + 1);
   ctx.font      = "9px system-ui, sans-serif";
   ctx.fillStyle = darkMode ? "rgba(181,212,244,0.75)" : "#185FA5";
-  ctx.fillText(`clarity ${sim.infoClar}/10`, nd.x, nd.y + 24);
+  const displayClar = sim.effectiveInfoClar != null && sim.infraDegradeRate > 0
+    ? sim.effectiveInfoClar.toFixed(1)
+    : sim.infoClar;
+  ctx.fillText(`clarity ${displayClar}/10${sim.infraDegradeRate > 0 ? ' ▼' : ''}`, nd.x, nd.y + 24);
   ctx.fillText(`${Math.round(nd.reliability * 100)}% reliable`, nd.x, nd.y + 34);
   const sc = SCENARIOS[sim.scenario] ?? SCENARIOS.pedestrian;
   ctx.fillStyle = darkMode ? "rgba(200,200,200,0.6)" : "rgba(80,80,80,0.55)";
@@ -707,13 +815,17 @@ export function drawSimulation(ctx, sim, W, H, darkMode = false, highlightFamily
     ctx.globalAlpha = (highlightFamilyIdx === null || f.fi === highlightFamilyIdx) ? 1 : 0.15;
     f.members.forEach((m) => {
       if (m.status === STATUS.DONE && !m.isHub) return;
-      const rad  = m.isHub ? 9 : m.isChild ? 4 : 5.5;
-      const fill = m.isElder ? ELDER_FILL : m.isChild ? CHILD_FILL : STATUS_COLORS[m.status].fill;
-      const str  = m.isElder && m.status !== STATUS.DONE
-        ? ELDER_STR
-        : m.isChild && m.status !== STATUS.DONE
-          ? CHILD_STR
-          : STATUS_COLORS[m.status].stroke;
+      const rad  = m.isHub ? 9 : (m.isChild || m.isUnaccompChild) ? 4 : 5.5;
+      const fill = m.isElder ? ELDER_FILL
+                 : m.isChild ? CHILD_FILL
+                 : m.isPregnant ? PREGNANT_FILL
+                 : m.isUnaccompChild ? UNACCOMP_FILL
+                 : STATUS_COLORS[m.status].fill;
+      const str  = m.isElder && m.status !== STATUS.DONE ? ELDER_STR
+                 : m.isChild && m.status !== STATUS.DONE ? CHILD_STR
+                 : m.isPregnant && m.status !== STATUS.DONE ? PREGNANT_STR
+                 : m.isUnaccompChild && m.status !== STATUS.DONE ? UNACCOMP_STR
+                 : STATUS_COLORS[m.status].stroke;
 
       // Trapped member indicator — pulsing red dashed ring
       if (m.trapped) {
@@ -722,6 +834,18 @@ export function drawSimulation(ctx, sim, W, H, darkMode = false, highlightFamily
         ctx.strokeStyle = `rgba(220,38,38,${pulse})`;
         ctx.lineWidth = 1.5;
         ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]);
+      }
+
+      // Coerced member — solid red ring (forced displacement indicator)
+      if (m.coerced && m.status !== STATUS.DONE) {
+        ctx.beginPath(); ctx.arc(m.x, m.y, rad + 7, 0, Math.PI * 2);
+        ctx.strokeStyle = '#DC2626'; ctx.lineWidth = 1.5; ctx.stroke();
+      }
+
+      // Checkpoint badge — small amber dot on checkpointed EVAC members
+      if (m.checkpointed && m.status === STATUS.EVAC) {
+        ctx.beginPath(); ctx.arc(m.x + rad + 1, m.y - rad - 1, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#D97706'; ctx.fill();
       }
 
       // 13d — Persistent "reached" halo: thin ring on any member alerted at least once
@@ -752,18 +876,37 @@ export function drawSimulation(ctx, sim, W, H, darkMode = false, highlightFamily
         ctx.fillStyle = "rgba(239,159,39,0.16)"; ctx.fill();
       }
 
-      // Child: diamond; everyone else: circle
+      // Each IHL-protected population type has a distinct shape
       if (m.isChild && m.status !== STATUS.DONE) {
+        // Child <5: rotated diamond (pink)
         ctx.save();
         ctx.translate(m.x, m.y); ctx.rotate(Math.PI / 4);
         ctx.beginPath(); ctx.rect(-4, -4, 8, 8);
         ctx.fillStyle = fill; ctx.fill();
         ctx.strokeStyle = str; ctx.lineWidth = 0.8; ctx.stroke();
         ctx.restore();
+      } else if (m.isUnaccompChild && m.status !== STATUS.DONE) {
+        // Unaccompanied minor: upward triangle (orange)
+        ctx.beginPath();
+        ctx.moveTo(m.x, m.y - rad * 1.25);
+        ctx.lineTo(m.x + rad, m.y + rad * 0.75);
+        ctx.lineTo(m.x - rad, m.y + rad * 0.75);
+        ctx.closePath();
+        ctx.fillStyle = fill; ctx.fill();
+        ctx.strokeStyle = str; ctx.lineWidth = 0.8; ctx.stroke();
       } else {
+        // Circle: elders (purple), pregnant (teal), adults, hubs
         ctx.beginPath(); ctx.arc(m.x, m.y, rad, 0, Math.PI * 2);
         ctx.fillStyle = fill; ctx.fill();
         ctx.strokeStyle = str; ctx.lineWidth = m.isHub ? 1.5 : 0.8; ctx.stroke();
+        // Pregnant women: white cross overlay (medical/maternity symbol)
+        if (m.isPregnant && m.status !== STATUS.DONE) {
+          ctx.strokeStyle = "rgba(255,255,255,0.92)";
+          ctx.lineWidth = 1.5; ctx.lineCap = "round";
+          ctx.beginPath(); ctx.moveTo(m.x - rad * 0.48, m.y); ctx.lineTo(m.x + rad * 0.48, m.y); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(m.x, m.y - rad * 0.48); ctx.lineTo(m.x, m.y + rad * 0.48); ctx.stroke();
+          ctx.lineCap = "butt";
+        }
       }
 
       // Evacuation direction arrow
@@ -788,8 +931,10 @@ export function drawSimulation(ctx, sim, W, H, darkMode = false, highlightFamily
         ctx.fillStyle = f.col;
         ctx.textAlign = "center";
         const tags = [];
-        if (f.elderCount > 0) tags.push(`${f.elderCount}e`);
-        if (f.childCount > 0) tags.push(`${f.childCount}c`);
+        if (f.elderCount > 0)    tags.push(`${f.elderCount}e`);
+        if (f.childCount > 0)    tags.push(`${f.childCount}c`);
+        if (f.pregnantCount > 0) tags.push(`${f.pregnantCount}p`);
+        if (f.unaccompCount > 0) tags.push(`${f.unaccompCount}u`);
         ctx.fillText(f.name + (tags.length ? ` (${tags.join(" ")})` : ""), m.x, m.y - (rad + 14));
       }
       if (showDetail && m.isElder && m.status !== STATUS.DONE) {
@@ -799,6 +944,14 @@ export function drawSimulation(ctx, sim, W, H, darkMode = false, highlightFamily
       if (showDetail && m.isChild && m.status !== STATUS.DONE) {
         ctx.font = "9px system-ui, sans-serif"; ctx.fillStyle = CHILD_STR; ctx.textAlign = "center";
         ctx.fillText("<5", m.x, m.y + (rad + 9));
+      }
+      if (showDetail && m.isPregnant && m.status !== STATUS.DONE) {
+        ctx.font = "9px system-ui, sans-serif"; ctx.fillStyle = PREGNANT_STR; ctx.textAlign = "center";
+        ctx.fillText("preg.", m.x, m.y + (rad + 7));
+      }
+      if (showDetail && m.isUnaccompChild && m.status !== STATUS.DONE) {
+        ctx.font = "9px system-ui, sans-serif"; ctx.fillStyle = UNACCOMP_STR; ctx.textAlign = "center";
+        ctx.fillText("minor", m.x, m.y + (rad + 9));
       }
       if (showDetail && m.status === STATUS.SEEKING) {
         ctx.font      = "9px system-ui, sans-serif";
@@ -830,11 +983,23 @@ export function drawSimulation(ctx, sim, W, H, darkMode = false, highlightFamily
     ctx.lineWidth = 2; ctx.stroke();
   });
 
+  // ── Corridor opening ripples (green, ceasefire window)
+  (sim.openEvents || []).forEach((e) => {
+    const age = (sim.tick - e.born) / 7;
+    if (age >= 1) return;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, age * 70, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(29,158,117,${(1 - age) * 0.7})`;
+    ctx.lineWidth = 2; ctx.stroke();
+  });
+
   // ── Corridor gate markers ─────────────────────────────────────────────────
   (sim.corridors || []).forEach((c) => {
     const t   = sim.tick;
     const closingSoon = c.open && c.closesAtTick !== null && c.closesAtTick - t <= 5 && c.closesAtTick > t;
-    const col = c.open ? (closingSoon ? '#F59E0B' : '#1D9E75') : '#DC2626';
+    const col = c.pendingOpen ? '#D97706'
+              : c.open ? (closingSoon ? '#F59E0B' : '#1D9E75')
+              : '#DC2626';
     const R   = 14;
 
     ctx.save();
@@ -873,6 +1038,18 @@ export function drawSimulation(ctx, sim, W, H, darkMode = false, highlightFamily
       ctx.fillStyle = closingSoon ? '#F59E0B' : (darkMode ? 'rgba(220,220,220,0.7)' : 'rgba(60,60,60,0.6)');
       ctx.textBaseline = 'middle';
       ctx.fillText(`closes t:${c.closesAtTick}`, lx, ly);
+    }
+
+    if (c.pendingOpen && c.opensAtTick !== null) {
+      const inset = R + 12;
+      const [lx, ly] = c.id === 'N' ? [c.x, c.y + inset]
+                      : c.id === 'S' ? [c.x, c.y - inset]
+                      : c.id === 'E' ? [c.x - inset, c.y]
+                      :                [c.x + inset, c.y];
+      ctx.font      = '500 8px system-ui, sans-serif';
+      ctx.fillStyle = '#D97706';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`opens t:${c.opensAtTick}`, lx, ly);
     }
 
     // "BLOCKED" label when closed
@@ -916,16 +1093,18 @@ export function drawSimulation(ctx, sim, W, H, darkMode = false, highlightFamily
  */
 export function getStats(sim) {
   const counts = [0, 0, 0, 0, 0];
-  let total = 0, elders = 0, children = 0;
+  let total = 0, elders = 0, children = 0, pregnant = 0, unaccomp = 0;
   sim.families.forEach((f) =>
     f.members.forEach((m) => {
       counts[m.status]++;
       total++;
-      if (m.isElder)  elders++;
-      if (m.isChild) children++;
+      if (m.isElder)         elders++;
+      if (m.isChild)         children++;
+      if (m.isPregnant)      pregnant++;
+      if (m.isUnaccompChild) unaccomp++;
     })
   );
-  return { counts, elders, children, total, pctClear: total > 0 ? Math.round((counts[4] / total) * 100) : 0 };
+  return { counts, elders, children, pregnant, unaccomp, total, pctClear: total > 0 ? Math.round((counts[4] / total) * 100) : 0 };
 }
 
 // ─── Run summary ──────────────────────────────────────────────────────────────
@@ -942,6 +1121,7 @@ export function computeRunSummary(sim, params) {
     return {
       name: f.name, col: f.col,
       elderCount: f.elderCount, childCount: f.childCount,
+      pregnantCount: f.pregnantCount ?? 0, unaccompCount: f.unaccompCount ?? 0,
       seek: avgSeek, mill: avgMill, evac: avgEvac,
       total: avgSeek + avgMill + avgEvac,
       lastDone: Math.max(...ms.map(m => m.doneAt ?? 0)),
@@ -956,29 +1136,40 @@ export function computeRunSummary(sim, params) {
   const trappedCount = sim.families.flatMap(f => f.members).filter(m => m.trapped).length;
   const slowest = familyData.reduce((a, b) => a.lastDone > b.lastDone ? a : b);
   let bottleneck = "";
-  if (slowest.elderCount > 0) bottleneck = `${slowest.elderCount} elder${slowest.elderCount > 1 ? "s" : ""}`;
-  if (slowest.childCount > 0) bottleneck += (bottleneck ? " + " : "") + `${slowest.childCount} child${slowest.childCount > 1 ? "ren" : ""}`;
+  if (slowest.elderCount > 0)    bottleneck = `${slowest.elderCount} elder${slowest.elderCount > 1 ? "s" : ""}`;
+  if (slowest.childCount > 0)    bottleneck += (bottleneck ? " + " : "") + `${slowest.childCount} child${slowest.childCount > 1 ? "ren" : ""}`;
+  if (slowest.pregnantCount > 0) bottleneck += (bottleneck ? " + " : "") + `${slowest.pregnantCount} pregnant`;
+  if (slowest.unaccompCount > 0) bottleneck += (bottleneck ? " + " : "") + `${slowest.unaccompCount} unaccomp. minor${slowest.unaccompCount > 1 ? "s" : ""}`;
   if (!bottleneck) bottleneck = "large household";
 
   // Neighbour influence summary
-  const allMs2              = sim.families.flatMap(f => f.members);
-  const confirmedMembers    = allMs2.filter(m => m.millingStart !== null);
+  const allMs2             = sim.families.flatMap(f => f.members);
+  const confirmedMembers   = allMs2.filter(m => m.millingStart !== null);
   const sociallyConfirmed      = confirmedMembers.filter(m => m.confirmedByChannel === 'social').length;
   const humanitarianConfirmed  = confirmedMembers.filter(m => m.confirmedByChannel === 'humanitarian').length;
-  const officiallyConfirmed    = confirmedMembers.filter(m => m.confirmedByChannel === 'official' || !m.confirmedByChannel).length;
-  const maxCh = Math.max(sociallyConfirmed, humanitarianConfirmed, officiallyConfirmed);
-  const dominantChannel = humanitarianConfirmed === maxCh && humanitarianConfirmed > officiallyConfirmed
-    ? "humanitarian"
-    : sociallyConfirmed === maxCh && sociallyConfirmed > officiallyConfirmed
-      ? "social"
-      : "official";
+  const misinfoConfirmed       = confirmedMembers.filter(m => m.confirmedByChannel === 'misinfo').length;
+  const coercedConfirmed       = confirmedMembers.filter(m => m.confirmedByChannel === 'coerced').length;
+  const officiallyConfirmed    = confirmedMembers.filter(m =>
+    m.confirmedByChannel === 'official' || (!m.confirmedByChannel && !m.coerced)
+  ).length;
+  const maxCh = Math.max(sociallyConfirmed, humanitarianConfirmed, officiallyConfirmed, misinfoConfirmed);
+  const dominantChannel = misinfoConfirmed === maxCh && misinfoConfirmed > officiallyConfirmed ? "misinfo"
+    : humanitarianConfirmed === maxCh && humanitarianConfirmed > officiallyConfirmed ? "humanitarian"
+    : sociallyConfirmed === maxCh && sociallyConfirmed > officiallyConfirmed ? "social"
+    : "official";
+
+  const coercedCount      = allMs2.filter(m => m.coerced).length;
+  const checkpointedCount = allMs2.filter(m => m.checkpointed).length;
 
   const neighbourFamilyData = sim.families.map(f => ({
     name:         f.name,
     col:          f.col,
     social:       f.members.filter(m => m.confirmedByChannel === 'social').length,
     humanitarian: f.members.filter(m => m.confirmedByChannel === 'humanitarian').length,
-    official:     f.members.filter(m => m.millingStart !== null && (m.confirmedByChannel === 'official' || !m.confirmedByChannel)).length,
+    misinfo:      f.members.filter(m => m.confirmedByChannel === 'misinfo').length,
+    official:     f.members.filter(m =>
+      m.millingStart !== null && (m.confirmedByChannel === 'official' || (!m.confirmedByChannel && !m.coerced))
+    ).length,
   }));
 
   return {
@@ -998,6 +1189,9 @@ export function computeRunSummary(sim, params) {
     sociallyConfirmed,
     humanitarianConfirmed,
     officiallyConfirmed,
+    misinfoConfirmed,
+    coercedCount,
+    checkpointedCount,
     dominantChannel,
     neighbourFamilyData,
   };
@@ -1050,9 +1244,15 @@ function generateCommsAdvice(rs) {
   }
 
   // 2 — Vulnerable population milling delays
-  if ((p.elderPct >= 15 || p.childPct >= 15) && rs.avgMilling >= 5) {
-    const who = p.elderPct >= 15 && p.childPct >= 15 ? "elders and young children"
-              : p.elderPct >= 15 ? "elders" : "young children";
+  if ((p.elderPct >= 15 || p.childPct >= 15 || (p.pregnantPct ?? 0) >= 8 || (p.unaccompChildPct ?? 0) > 0) && rs.avgMilling >= 5) {
+    const groups = [];
+    if (p.elderPct >= 15)          groups.push("elders");
+    if (p.childPct >= 15)          groups.push("young children");
+    if ((p.pregnantPct ?? 0) >= 8) groups.push("pregnant women");
+    if ((p.unaccompChildPct ?? 0) > 0) groups.push("unaccompanied minors");
+    const who = groups.length > 1
+      ? groups.slice(0, -1).join(", ") + " and " + groups[groups.length - 1]
+      : groups[0] ?? "vulnerable members";
     items.push({
       tag: "Vulnerable populations",
       col: "#534AB7",
@@ -1133,6 +1333,61 @@ function generateCommsAdvice(rs) {
     });
   }
 
+  // Coercion
+  if (rs.coercedCount > 0) {
+    items.push({
+      tag: "Forced displacement",
+      col: "#DC2626",
+      bg: "#FEE2E2",
+      title: `Document the ${rs.coercedCount} forced displacement${rs.coercedCount !== 1 ? "s" : ""} — and pursue accountability`,
+      body: `Coerced evacuation before voluntary confirmation is a violation of Art. 17 AP II and Customary IHL Rule 129. Each instance should be documented with time, location, and household composition, submitted to the protection cluster and OHCHR, and flagged in OCHA's Humanitarian Needs Overview. Documentation is the primary accountability mechanism when direct intervention is not possible.`,
+    });
+  }
+
+  // Checkpoint delays
+  if (rs.checkpointedCount > 0) {
+    items.push({
+      tag: "Checkpoints",
+      col: "#D97706",
+      bg: "#FEF3E2",
+      title: "Negotiate checkpoint procedures — and pre-register vulnerable households",
+      body: `${rs.checkpointedCount} member${rs.checkpointedCount !== 1 ? "s were" : " was"} delayed at checkpoints. Under Customary IHL Rule 99, checkpoints must not disproportionately impede civilian movement. Negotiate in advance a simplified screening procedure for documented humanitarian evacuations, and pre-register households with elders, young children, or medical needs so they can be waved through priority lanes without full documentation checks.`,
+    });
+  }
+
+  // Misinformation
+  if ((rs.misinfoConfirmed ?? 0) > 0) {
+    items.push({
+      tag: "Misinformation",
+      col: "#DC2626",
+      bg: "#FEE2E2",
+      title: "Counter false information with authoritative, repeated, multi-channel correction",
+      body: `${rs.misinfoConfirmed} member${rs.misinfoConfirmed !== 1 ? "s" : ""} were confirmed primarily by false information — risking misdirection toward blocked or dangerous routes. Counter-messaging must be faster and louder than the misinformation: issue corrections through every channel simultaneously, name the false claim explicitly ("reports of a safe exit via [X] are false"), and enlist trusted community voices to amplify the correction. Under AP I Art. 37, deliberate deception of civilians is prohibited — document the source of false information for accountability.`,
+    });
+  }
+
+  // Pregnant women
+  if ((p.pregnantPct ?? 0) >= 8) {
+    items.push({
+      tag: "Pregnant women",
+      col: "#0891B2",
+      bg: "#E0F2FE",
+      title: "Arrange assisted transport and priority corridor access for pregnant women",
+      body: `Pregnant women face compound delays: physical mobility constraints extend milling time, and uncertainty about medical access along the route can cause them to defer departure. Pre-register pregnant women with local health authorities before any emergency, assign them a dedicated maternal health liaison, communicate the location of medical points along the route, and reserve priority access at checkpoints. Under AP I Art. 16 and GC IV Art. 23, pregnant women are entitled to special protection and priority access to humanitarian relief.`,
+    });
+  }
+
+  // Unaccompanied minors
+  if ((p.unaccompChildPct ?? 0) > 0) {
+    items.push({
+      tag: "Unaccompanied minors",
+      col: "#EA580C",
+      bg: "#FFF7ED",
+      title: "Activate family reunification protocols before routing unaccompanied children",
+      body: `Unaccompanied children cannot safely evacuate without an authorised escort. Under AP I Art. 78, they may not be removed from conflict areas without parental or guardian consent except in compelling security emergencies. Establish a child registration desk at the nearest safe point, activate ICRC family tracing services, and brief community monitors to hold separated children at a safe assembly point rather than routing them into the main evacuation flow. Movement without reunification exposes children to trafficking and secondary harm.`,
+    });
+  }
+
   return items.slice(0, 5);
 }
 
@@ -1159,10 +1414,10 @@ export default function EvacuationSim() {
   const [scenario, setScenario] = useState("pedestrian");
 
   const DEFAULT_CORRIDORS = [
-    { id: 'N', label: 'North', open: true, closesAtTick: '' },
-    { id: 'S', label: 'South', open: true, closesAtTick: '' },
-    { id: 'E', label: 'East',  open: true, closesAtTick: '' },
-    { id: 'W', label: 'West',  open: true, closesAtTick: '' },
+    { id: 'N', label: 'North', open: true, closesAtTick: '', opensAtTick: '' },
+    { id: 'S', label: 'South', open: true, closesAtTick: '', opensAtTick: '' },
+    { id: 'E', label: 'East',  open: true, closesAtTick: '', opensAtTick: '' },
+    { id: 'W', label: 'West',  open: true, closesAtTick: '', opensAtTick: '' },
   ];
   const [corridorSettings, setCorridorSettings] = useState(DEFAULT_CORRIDORS);
 
@@ -1171,10 +1426,16 @@ export default function EvacuationSim() {
     threatRiseRate:       0,
     elderPct:             20,  // stored as integer percent
     childPct:             20,
+    pregnantPct:          0,
+    unaccompChildPct:     0,
     infoClar:             5,
     nbrInfluence:         55,
     avgFamilySize:        3,
     humanitarianAccess:   40,
+    checkpointDelay:   0,
+    misinfoRate:       0,
+    infraDegradeRate:  0,
+    coercionRisk:      0,
   });
 
   // ── Build / reset ──────────────────────────────────────────────────────────
@@ -1197,16 +1458,23 @@ export default function EvacuationSim() {
     const sim = buildSimulation({
       threat:         params.threat,
       threatRiseRate: params.threatRiseRate / 10,
-      elderPct:       params.elderPct / 100,
-      childPct:      params.childPct / 100,
+      elderPct:         params.elderPct / 100,
+      childPct:         params.childPct / 100,
+      pregnantPct:      params.pregnantPct / 100,
+      unaccompChildPct: params.unaccompChildPct / 100,
       infoClar:      params.infoClar,
       nbrInfluence:         params.nbrInfluence / 100,
       avgFamilySize:        params.avgFamilySize,
       humanitarianAccess:   params.humanitarianAccess / 100,
+      checkpointDelay:   params.checkpointDelay,
+      misinfoRate:       params.misinfoRate / 100,
+      infraDegradeRate:  params.infraDegradeRate,
+      coercionRisk:      params.coercionRisk / 100,
       scenario:             overrideScenario ?? scenario,
       corridorSettings: corridorSettings.map(c => ({
         ...c,
         closesAtTick: c.closesAtTick === '' ? null : (parseInt(c.closesAtTick, 10) || null),
+        opensAtTick: c.opensAtTick === '' ? null : (parseInt(c.opensAtTick, 10) || null),
       })),
       canvasWidth:   W,
     });
@@ -1350,6 +1618,28 @@ export default function EvacuationSim() {
       ],
     },
     {
+      group: "Armed conflict",
+      items: [
+        { key: "checkpointDelay", label: "Checkpoint delay", min: 0, max: 15, suffix: "t",
+          hint: v => v === 0 ? "No checkpoints — members evacuate without impediment"
+                 : v <= 5   ? `Light screening — up to ${v}t delay for checked members`
+                            : `Heavy screening — up to ${v}t delay, significant obstruction` },
+        { key: "misinfoRate", label: "Misinformation", min: 0, max: 100, suffix: "%",
+          hint: v => v === 0 ? "No misinformation — all confirmations are genuine"
+                 : v <= 30  ? "Low misinformation — some false confirmations, may misdirect evacuees"
+                 : v <= 60  ? "Moderate misinformation — false information competing with genuine alerts"
+                            : "High misinformation — severe misdirection risk" },
+        { key: "infraDegradeRate", label: "Infrastructure damage", min: 0, max: 20, suffix: "",
+          hint: v => v === 0 ? "No damage — info clarity holds for the full run"
+                 : v <= 7   ? "Light damage — clarity degrades slowly"
+                            : "Heavy damage — clarity collapses quickly" },
+        { key: "coercionRisk", label: "Coercion risk", min: 0, max: 100, suffix: "%",
+          hint: v => v === 0 ? "No coercion — all evacuation is voluntary (IHL-compliant)"
+                 : v <= 30  ? "Low coercion — some households may be forced to leave prematurely"
+                            : "High coercion — forced displacement likely (violation: Art. 17 AP II)" },
+      ],
+    },
+    {
       group: "Population",
       items: [
         { key: "avgFamilySize", label: "Avg. family size",   min: 1, max: 7,   suffix: "",
@@ -1365,6 +1655,14 @@ export default function EvacuationSim() {
           hint: v => v === 0 ? "No young children in population"
                  : v <= 20  ? "Small child population — some gathering delays"
                             : "High child population — significant preparation delays" },
+        { key: "pregnantPct",   label: "Pregnant women",       min: 0, max: 30,  suffix: "%",
+          hint: v => v === 0 ? "No pregnant women — IHL Art. 16 AP I special category absent"
+                 : v <= 10  ? "Small proportion — some milling and mobility delays; priority transport advised"
+                            : "Significant proportion — assisted transport and priority corridor access essential (Art. 16 AP I, GC IV Art. 23)" },
+        { key: "unaccompChildPct", label: "Unaccomp. minors",  min: 0, max: 20,  suffix: "%",
+          hint: v => v === 0 ? "No unaccompanied minors — all children have family escorts"
+                 : v <= 6   ? "Some unaccompanied minors — family reunification delays likely before departure (Art. 78 AP I)"
+                            : "High proportion — significant reunification delays; ICRC tracing services required" },
         { key: "nbrInfluence",  label: "Neighbor influence",  min: 0, max: 100, suffix: "%",
           hint: (v, sc) => {
             if (sc === "train") return "Lower relevance in train scenario — passengers are often strangers";
@@ -1460,6 +1758,15 @@ export default function EvacuationSim() {
                     }}
                   />
                 </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
+                  <span style={{ fontSize: 9, color: "#737069", whiteSpace: "nowrap" }}>opens t:</span>
+                  <input
+                    type="number" min="1" placeholder="—"
+                    value={c.opensAtTick ?? ''}
+                    onChange={e => setCorridorSettings(prev => prev.map((s, j) => j === i ? { ...s, opensAtTick: e.target.value } : s))}
+                    style={{ width: "100%", fontSize: 9, padding: "2px 4px", borderRadius: 3, border: "0.5px solid rgba(0,0,0,0.18)" }}
+                  />
+                </div>
               </div>
             ))}
           </div>
@@ -1548,23 +1855,41 @@ export default function EvacuationSim() {
         })()}
       </div>
 
-      {/* Stats row */}
-      <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+      {/* Stats row 1 — phase counts */}
+      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
         {[
-          { label: "Unaware",   val: counts[0], col: "#737069" },
-          { label: "Seeking",   val: counts[1], col: "#185FA5" },
-          { label: "Milling",   val: counts[2], col: "#BA7517" },
-          { label: "Evacuating",val: counts[3], col: "#A32D2D" },
-          { label: "Evacuated", val: counts[4], col: "#0F6E56" },
-          { label: "Elders",    val: s.elders,  col: "#534AB7" },
-          { label: "Children",  val: s.children,col: "#993556" },
-          { label: "% Clear",   val: (s.pctClear ?? "—") + (stats ? "%" : ""), col: "#737069" },
+          { label: "Unaware",    val: counts[0], col: "#737069" },
+          { label: "Seeking",    val: counts[1], col: "#185FA5" },
+          { label: "Milling",    val: counts[2], col: "#BA7517" },
+          { label: "Evacuating", val: counts[3], col: "#A32D2D" },
+          { label: "Evacuated",  val: counts[4], col: "#0F6E56" },
         ].map(({ label, val, col }) => (
-          <div key={label} style={{ background: "#f1efe8", borderRadius: 6, padding: "5px 10px", fontSize: 11, flex: 1, minWidth: 60, textAlign: "center" }}>
+          <div key={label} style={{ background: "#f1efe8", borderRadius: 6, padding: "5px 8px", fontSize: 11, flex: 1, textAlign: "center" }}>
             <span style={{ fontSize: 9, color: "#737069", display: "block" }}>{label}</span>
-            <strong style={{ fontSize: 16, fontWeight: 500, color: col }}>{val ?? "—"}</strong>
+            <strong style={{ fontSize: 15, fontWeight: 500, color: col }}>{val ?? "—"}</strong>
           </div>
         ))}
+      </div>
+      {/* Stats row 2 — demographic counts */}
+      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+        {[
+          { label: "Children <5", val: s.children, col: "#993556" },
+          { label: "Elders",      val: s.elders,   col: "#534AB7" },
+          { label: "Pregnant",    val: s.pregnant, col: "#0E7490" },
+          { label: "Unaccomp.",   val: s.unaccomp, col: "#C2410C" },
+        ].map(({ label, val, col }) => (
+          <div key={label} style={{ background: "#f1efe8", borderRadius: 6, padding: "5px 8px", fontSize: 11, flex: 1, textAlign: "center" }}>
+            <span style={{ fontSize: 9, color: "#737069", display: "block" }}>{label}</span>
+            <strong style={{ fontSize: 15, fontWeight: 500, color: col }}>{val ?? "—"}</strong>
+          </div>
+        ))}
+      </div>
+      {/* Stats row 3 — % Clear prominent tile */}
+      <div style={{ marginTop: 6, background: "#f1efe8", borderRadius: 6, padding: "10px 14px", textAlign: "center" }}>
+        <span style={{ fontSize: 9, color: "#737069", display: "block", letterSpacing: "0.04em", textTransform: "uppercase" }}>% Clear</span>
+        <strong style={{ fontSize: 28, fontWeight: 500, color: "#0F6E56", lineHeight: 1.2 }}>
+          {(s.pctClear ?? "—") + (stats ? "%" : "")}
+        </strong>
       </div>
 
       {/* Event log */}
@@ -1676,19 +2001,20 @@ export default function EvacuationSim() {
                 </div>
                 <div style={{ flex: 1.4, background: "#fff", borderRadius: 6, padding: "5px 8px", textAlign: "center" }}>
                   <div style={{ fontSize: 9, color: "#737069" }}>Dominant channel</div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: runSummary.dominantChannel === 'social' ? "#D97706" : runSummary.dominantChannel === 'humanitarian' ? "#1D9E75" : "#185FA5" }}>
-                    {runSummary.dominantChannel === 'social' ? '🟡 Social' : runSummary.dominantChannel === 'humanitarian' ? '🟢 Humanitarian' : '🔵 Official'}
+                  <div style={{ fontSize: 12, fontWeight: 600, color: runSummary.dominantChannel === 'social' ? "#D97706" : runSummary.dominantChannel === 'humanitarian' ? "#1D9E75" : runSummary.dominantChannel === 'misinfo' ? "#DC2626" : "#185FA5" }}>
+                    {runSummary.dominantChannel === 'misinfo' ? '🔴 Misinfo' : runSummary.dominantChannel === 'social' ? '🟡 Social' : runSummary.dominantChannel === 'humanitarian' ? '🟢 Humanitarian' : '🔵 Official'}
                   </div>
                 </div>
               </div>
 
               {/* Three-channel split bar */}
               {(() => {
-                const total = runSummary.sociallyConfirmed + runSummary.officiallyConfirmed + runSummary.humanitarianConfirmed;
+                const total = runSummary.sociallyConfirmed + runSummary.officiallyConfirmed + runSummary.humanitarianConfirmed + (runSummary.misinfoConfirmed ?? 0);
                 if (total === 0) return null;
                 const socialPct   = (runSummary.sociallyConfirmed      / total) * 100;
                 const humPct      = (runSummary.humanitarianConfirmed  / total) * 100;
                 const officialPct = (runSummary.officiallyConfirmed    / total) * 100;
+                const misinfoPct  = ((runSummary.misinfoConfirmed ?? 0) / total) * 100;
                 return (
                   <div style={{ marginBottom: 12 }}>
                     <div style={{ fontSize: 9, color: "#737069", marginBottom: 4 }}>
@@ -1698,6 +2024,7 @@ export default function EvacuationSim() {
                       <div style={{ width: `${officialPct}%`, background: "#378ADD" }} title={`Official: ${runSummary.officiallyConfirmed}`} />
                       <div style={{ width: `${humPct}%`,      background: "#1D9E75" }} title={`Aid: ${runSummary.humanitarianConfirmed}`} />
                       <div style={{ width: `${socialPct}%`,   background: "#D97706" }} title={`Social: ${runSummary.sociallyConfirmed}`} />
+                      <div style={{ width: `${misinfoPct}%`,  background: "#DC2626" }} title={`Misinfo: ${runSummary.misinfoConfirmed}`} />
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#737069", marginTop: 3 }}>
                       <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
@@ -1714,6 +2041,12 @@ export default function EvacuationSim() {
                         Social {Math.round(socialPct)}%
                         <span style={{ width: 7, height: 7, background: "#D97706", display: "inline-block", borderRadius: 1 }} />
                       </span>
+                      {misinfoPct > 0 && (
+                        <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                          Misinfo {Math.round(misinfoPct)}%
+                          <span style={{ width: 7, height: 7, background: "#DC2626", display: "inline-block", borderRadius: 1 }} />
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
@@ -1724,7 +2057,7 @@ export default function EvacuationSim() {
                 Per-family channel breakdown
               </div>
               {runSummary.neighbourFamilyData.map(fd => {
-                const total = fd.social + fd.official + (fd.humanitarian ?? 0);
+                const total = fd.social + fd.official + (fd.humanitarian ?? 0) + (fd.misinfo ?? 0);
                 if (total === 0) return null;
                 return (
                   <div key={fd.name} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
@@ -1733,9 +2066,10 @@ export default function EvacuationSim() {
                       <div style={{ width: `${(fd.official / total) * 100}%`, background: "#378ADD" }} title={`Official: ${fd.official}`} />
                       <div style={{ width: `${((fd.humanitarian ?? 0) / total) * 100}%`, background: "#1D9E75" }} title={`Aid: ${fd.humanitarian ?? 0}`} />
                       <div style={{ width: `${(fd.social / total) * 100}%`, background: "#D97706" }} title={`Social: ${fd.social}`} />
+                      <div style={{ width: `${((fd.misinfo ?? 0) / total) * 100}%`, background: "#DC2626" }} title={`Misinfo: ${fd.misinfo ?? 0}`} />
                     </div>
                     <div style={{ fontSize: 9, color: "#737069", minWidth: 72, textAlign: "right" }}>
-                      {fd.official}off{(fd.humanitarian ?? 0) > 0 ? ` · ${fd.humanitarian}aid` : ""} · {fd.social}soc
+                      {fd.official}off{(fd.humanitarian ?? 0) > 0 ? ` · ${fd.humanitarian}aid` : ""} · {fd.social}soc{(fd.misinfo ?? 0) > 0 ? ` · ${fd.misinfo}mis` : ""}
                     </div>
                   </div>
                 );
@@ -1786,6 +2120,38 @@ export default function EvacuationSim() {
                 </div>
               )}
             </div>
+
+            {/* Conflict metrics */}
+            {(runSummary.coercedCount > 0 || runSummary.checkpointedCount > 0 || runSummary.misinfoConfirmed > 0) && (
+              <div style={{ marginTop: 14, paddingTop: 12, borderTop: "0.5px solid rgba(0,0,0,0.08)" }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: "#737069", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                  Conflict metrics
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {runSummary.coercedCount > 0 && (
+                    <div style={{ flex: 1, minWidth: 80, background: "#FEE2E2", borderRadius: 6, padding: "5px 8px", textAlign: "center", border: "0.5px solid rgba(220,38,38,0.2)" }}>
+                      <div style={{ fontSize: 9, color: "#991B1B" }}>Forced displacement</div>
+                      <div style={{ fontSize: 16, fontWeight: 500, color: "#DC2626" }}>{runSummary.coercedCount}</div>
+                      <div style={{ fontSize: 8, color: "#991B1B" }}>Art. 17 AP II violation</div>
+                    </div>
+                  )}
+                  {runSummary.checkpointedCount > 0 && (
+                    <div style={{ flex: 1, minWidth: 80, background: "#FEF3E2", borderRadius: 6, padding: "5px 8px", textAlign: "center", border: "0.5px solid rgba(217,119,6,0.2)" }}>
+                      <div style={{ fontSize: 9, color: "#92400E" }}>Checkpoint delays</div>
+                      <div style={{ fontSize: 16, fontWeight: 500, color: "#D97706" }}>{runSummary.checkpointedCount}</div>
+                      <div style={{ fontSize: 8, color: "#92400E" }}>members screened</div>
+                    </div>
+                  )}
+                  {runSummary.misinfoConfirmed > 0 && (
+                    <div style={{ flex: 1, minWidth: 80, background: "#FEE2E2", borderRadius: 6, padding: "5px 8px", textAlign: "center", border: "0.5px solid rgba(220,38,38,0.2)" }}>
+                      <div style={{ fontSize: 9, color: "#991B1B" }}>Misinfo-confirmed</div>
+                      <div style={{ fontSize: 16, fontWeight: 500, color: "#DC2626" }}>{runSummary.misinfoConfirmed}</div>
+                      <div style={{ fontSize: 8, color: "#991B1B" }}>may be misdirected</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Communications recommendations */}
             {(() => {
