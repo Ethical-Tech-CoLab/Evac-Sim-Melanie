@@ -1,6 +1,11 @@
 # Evacuation Simulation
 
 An interactive agent-based model of community evacuation behavior, built in React.
+The Evacuation Simulator is meant to show how information spreads and demographics affect humanitarian evacuations. Rooted in diaster relief scholarship and International Humanitarian Law, this simulation allows students and humanitarians to explore how different demographics and information flows affect humanitarian evacuations. 
+
+Users are able to change demographics, neighnbor influence, humanitarian aid reach, and information clairity to model different evacuation circumstance. Users can then compare runs to better understand how demographics and information spread affect humanitarian evacuations. 
+
+The opening site is a guide page, which takes users through how to use the simulation and explains the foundational research and formulas that the simulation operates undere. 
 
 ## What it models
 
@@ -9,6 +14,8 @@ An interactive agent-based model of community evacuation behavior, built in Reac
 - **Neighbor social influence** — seeing adjacent families mill or evacuate counts as a confirmation signal
 - **Elder delays** — elders need more confirmations, longer milling time, and slower travel speed
 - **Child (<5) delays** — young children require longer milling (gathering, packing) and move slowest during evacuation
+-**Pregnancy Delays**- those who are pregnant have delayed travel speed
+-**Unaccompanied Minors Delays**- unaccompanied children mill for longer periods of time and take longer to evacuate 
 
 ## Status lifecycle
 
@@ -51,32 +58,3 @@ The simulation logic is fully separated from the React UI into named exports:
 | `drawSimulation()`  | Renders current state to a canvas context |
 | `getStats()`        | Returns status counts and demographic tallies |
 
-### Ideas for extension
-
-**Road network & congestion**
-Add a graph of road nodes. During `EVAC` status, route members along shortest path. Decrement road capacity as members use it; slow speed when capacity is exceeded.
-
-```js
-// in stepSimulation, replace straight-line movement:
-const nextNode = getNextRoadNode(mem, sim.roadGraph);
-const congestion = sim.roadGraph[nextNode].load / sim.roadGraph[nextNode].capacity;
-const spd = baseSpeeds[mem.type] * (1 - congestion * 0.6);
-```
-
-**Side-by-side scenario comparison**
-Render two canvases with independent `simRef` objects. Run `stepSimulation` on both each tick. Diff the `getStats()` outputs to highlight which scenario clears faster.
-
-**CSV data export**
-After each tick, push a row to an array: `{ tick, unaware, seeking, milling, evacuating, done, elders, children }`. On finish, serialize with:
-
-```js
-const csv = [Object.keys(rows[0]).join(","), ...rows.map(r => Object.values(r).join(","))].join("\n");
-const blob = new Blob([csv], { type: "text/csv" });
-const url = URL.createObjectURL(blob);
-```
-
-**Shelter-in-place branching**
-Add a `SHELTER` status. During `SEEKING`, give households with elders or children a probability of choosing shelter-in-place instead of evacuation, based on threat level.
-
-**Multiple information sources**
-Replace the single `infoNode` with an array. Each member is assigned a primary source (official alert, social media, TV, word of mouth) with different reliability scores. Confirmations from multiple *different* sources count more than repeated checks of the same one.
