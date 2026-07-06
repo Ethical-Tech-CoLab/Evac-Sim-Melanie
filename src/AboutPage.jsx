@@ -163,7 +163,7 @@ function PhaseIllustration({ step }) {
         style={{ transition: "all 0.5s" }}
       />
       <text x={CX} y={CY + 4} textAnchor="middle" fontSize="9" fontWeight="500"
-        fill={step === 1 ? "#fff" : "#0C447C"}>Info</text>
+        fill={step === 1 ? "#fff" : "#0C447C"}>Govt</text>
 
       {/* Family nodes */}
       {NODES.map(n => {
