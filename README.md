@@ -58,3 +58,4 @@ The simulation logic is fully separated from the React UI into named exports:
 | `drawSimulation()`  | Renders current state to a canvas context |
 | `getStats()`        | Returns status counts and demographic tallies |
 
+Deployed on GitHub pages at https://ethical-tech-colab.github.io/Evac-Sim-Melanie/
