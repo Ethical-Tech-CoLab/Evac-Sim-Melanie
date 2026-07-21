@@ -1,5 +1,8 @@
 # Evacuation Simulation
 
+**[Live site](https://ethical-tech-colab.github.io/Evac-Sim-Melanie/)** ·
+**[Research report](EvacSim-Paper.md)** (plain-language, non-technical)
+
 An interactive agent-based model of community evacuation behavior, built in React.
 The Evacuation Simulator is meant to show how information spreads and demographics affect humanitarian evacuations. Rooted in diaster relief scholarship and International Humanitarian Law, this simulation allows students and humanitarians to explore how different demographics and information flows affect humanitarian evacuations. 
 
