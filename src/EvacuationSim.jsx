@@ -34,6 +34,28 @@ const STATUS_TEXT_COLOR = ["#737069", "#185FA5", "#BA7517", "#A32D2D", "#0F6E56"
 
 // ─── Scenario definitions ─────────────────────────────────────────────────────
 
+/**
+ * Evacuation-travel speed of each protected category, as a fraction of the
+ * scenario's adult speed. The ratios are those of the pedestrian scenario
+ * (1.5 / 1.8 / 2.0 against an adult 2.6) and are applied to every scenario, so
+ * protected populations stay differentiated during the evacuation-travel phase
+ * regardless of mode. Previously car and train used one flat speed for all
+ * categories, which erased that differentiation outside the milling phase.
+ */
+const SPEED_FACTORS = {
+  child:    1.5 / 2.6,
+  elder:    1.8 / 2.6,
+  pregnant: 2.0 / 2.6,
+  adult:    1,
+};
+
+const scenarioSpeeds = (adult) => ({
+  child:    adult * SPEED_FACTORS.child,
+  elder:    adult * SPEED_FACTORS.elder,
+  pregnant: adult * SPEED_FACTORS.pregnant,
+  adult,
+});
+
 const SCENARIOS = {
   pedestrian: {
     label: "Pedestrian",
@@ -42,7 +64,7 @@ const SCENARIOS = {
     millingPregnant:[2, 5], millingUnaccomp: [6, 12],
     evacBase:       [3, 6], evacElder:       [3, 7], evacChild:       [2, 5],
     evacPregnant:   [3, 6], evacUnaccomp:    [2, 5],
-    speeds: { child: 1.5, elder: 1.8, pregnant: 2.0, adult: 2.6 },
+    speeds: scenarioSpeeds(2.6),
   },
   car: {
     label: "Car",
@@ -51,7 +73,7 @@ const SCENARIOS = {
     millingPregnant:[1, 2], millingUnaccomp: [4, 8],
     evacBase:       [1, 2], evacElder:       [0, 1], evacChild:       [0, 1],
     evacPregnant:   [0, 1], evacUnaccomp:    [0, 1],
-    speeds: { child: 5.5, elder: 5.5, pregnant: 5.5, adult: 5.5 },
+    speeds: scenarioSpeeds(5.5),
   },
   train: {
     label: "Train",
@@ -60,7 +82,7 @@ const SCENARIOS = {
     millingPregnant:[2, 4], millingUnaccomp: [5, 10],
     evacBase:       [1, 2], evacElder:       [0, 1], evacChild:       [0, 1],
     evacPregnant:   [0, 1], evacUnaccomp:    [0, 1],
-    speeds: { child: 8.0, elder: 8.0, pregnant: 8.0, adult: 8.0 },
+    speeds: scenarioSpeeds(8.0),
   },
 };
 
@@ -354,6 +376,8 @@ export function stepSimulation(sim, canvasW, canvasH) {
               mem.trapped = true;
               newLogs.push(`t${t} ${mem.name} (${fam.name}) trapped — no open corridors`);
             } else {
+              // A route was found, so this member is no longer trapped.
+              mem.trapped = false;
               mem.corridorId = alt.id;
               mem.tx = alt.exitX; mem.ty = alt.exitY;
               newLogs.push(`t${t} ${mem.name} rerouting → ${alt.label} corridor`);
@@ -372,6 +396,23 @@ export function stepSimulation(sim, canvasW, canvasH) {
       c.pendingOpen = false;
       newLogs.push(`t${t} ✅ ${c.label} corridor opened — humanitarian window in effect`);
       (sim.openEvents = sim.openEvents || []).push({ x: c.x, y: c.y, born: t });
+      // Members stranded mid-evacuation when every corridor shut now have a
+      // route again: send them to it and clear the trapped flag, mirroring the
+      // reroute done on closure.
+      sim.families.forEach((fam) => {
+        fam.members.forEach((mem) => {
+          if (mem.status === STATUS.EVAC && mem.trapped) {
+            const alt = findNearestOpenCorridor(sim, mem.x, mem.y);
+            if (alt) {
+              mem.trapped = false;
+              mem.corridorId = alt.id;
+              mem.tx = alt.exitX; mem.ty = alt.exitY;
+              newLogs.push(`t${t} ${mem.name} (${fam.name}) rerouting → ${alt.label} corridor`);
+              sim.activeArcs.push({ x1: mem.x, y1: mem.y, x2: alt.x, y2: alt.y, born: t, col: '#D97706', social: true });
+            }
+          }
+        });
+      });
     }
   });
 
@@ -505,6 +546,11 @@ export function stepSimulation(sim, canvasW, canvasH) {
               newLogs.push(`t${t} ${mem.name} (${f.name}) trapped — all corridors blocked`);
             }
           } else {
+            // A corridor is available (or none are configured), so a member who
+            // was trapped while every corridor was shut is no longer trapped —
+            // otherwise they stay counted as trapped in the run summary and the
+            // policy advice even though they go on to evacuate.
+            mem.trapped = false;
             // Checkpoint delay (applied once when EVAC begins)
             if (sim.checkpointDelay > 0 && !mem.checkpointed) {
               mem.checkpointed = true;
@@ -543,7 +589,9 @@ export function stepSimulation(sim, canvasW, canvasH) {
         const dy = mem.ty - mem.y;
         const d  = Math.hypot(dx, dy);
         if (d > spd) { mem.x += (dx / d) * spd; mem.y += (dy / d) * spd; }
-        if (t - mem.evacStart >= mem.evacTicks + 2) {
+        // A member stranded by a closure has no open route, so they cannot
+        // complete the evacuation until one reopens and they are rerouted.
+        if (!mem.trapped && t - mem.evacStart >= mem.evacTicks + 2) {
           mem.status = STATUS.DONE;
           mem.doneAt = t;
           newLogs.push(`t${t} ${mem.name} (${f.name}) evacuated ✓`);
