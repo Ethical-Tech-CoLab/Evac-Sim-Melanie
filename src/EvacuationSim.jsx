@@ -110,6 +110,16 @@ const irnd  = (rng, a, b) => Math.floor(rnd(rng, a, b + 1));
 const pick  = (rng, arr) => arr[Math.floor(rng() * arr.length)];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
+/**
+ * Parse a corridor schedule field ('' / '12' / '0') into a tick number or null.
+ * Tick 0 is a valid schedule value, so blank and non-numeric input — and only
+ * those — map to null.
+ */
+const toTick = (v) => {
+  const n = parseInt(v, 10);
+  return Number.isNaN(n) ? null : n;
+};
+
 function findNearestOpenCorridor(sim, x, y) {
   if (!sim.corridors) return null;
   const open = sim.corridors.filter(c => c.open);
@@ -588,7 +598,19 @@ export function stepSimulation(sim, canvasW, canvasH) {
         const dx = mem.tx - mem.x;
         const dy = mem.ty - mem.y;
         const d  = Math.hypot(dx, dy);
-        if (d > spd) { mem.x += (dx / d) * spd; mem.y += (dy / d) * spd; }
+        // The EVAC → DONE transition below is time-based, but movement used to be
+        // capped at `spd` per tick toward an exit 200–300 px away. Slow members
+        // therefore reached DONE (and stopped being drawn) while still standing
+        // beside their origin, and fast ones reached the exit and froze there
+        // until their timer expired. Pace the *remaining* distance over the
+        // *remaining* ticks so a member always reaches their exit by the tick
+        // they are recorded as evacuated; anyone fast enough to get there sooner
+        // still travels at their own category speed. Trapped members have no
+        // completion tick, so they keep moving at their plain category speed.
+        const remainingTicks = Math.max(1, (mem.evacStart + mem.evacTicks + 2) - t);
+        const step = mem.trapped ? spd : Math.max(spd, d / remainingTicks);
+        if (d > step) { mem.x += (dx / d) * step; mem.y += (dy / d) * step; }
+        else { mem.x = mem.tx; mem.y = mem.ty; }
         // A member stranded by a closure has no open route, so they cannot
         // complete the evacuation until one reopens and they are rerouted.
         if (!mem.trapped && t - mem.evacStart >= mem.evacTicks + 2) {
@@ -1548,8 +1570,11 @@ export default function EvacuationSim() {
       scenario:             overrideScenario ?? scenario,
       corridorSettings: corridorSettings.map(c => ({
         ...c,
-        closesAtTick: c.closesAtTick === '' ? null : (parseInt(c.closesAtTick, 10) || null),
-        opensAtTick: c.opensAtTick === '' ? null : (parseInt(c.opensAtTick, 10) || null),
+        // `|| null` would collapse a legitimate tick 0 to null, so a gate set to
+        // close/open at tick 0 would never do so. Only a non-numeric entry
+        // should become null.
+        closesAtTick: toTick(c.closesAtTick),
+        opensAtTick: toTick(c.opensAtTick),
       })),
       seed,
       canvasWidth:   W,
