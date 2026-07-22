@@ -66,9 +66,26 @@ const SCENARIOS = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const rnd   = (a, b) => a + Math.random() * (b - a);
-const irnd  = (a, b) => Math.floor(rnd(a, b + 1));
-const pick  = (arr) => arr[Math.floor(Math.random() * arr.length)];
+/**
+ * Seeded PRNG (mulberry32). Returns a function producing floats in [0, 1).
+ * Every stochastic draw in the simulation goes through one of these streams so
+ * that a given seed reproduces a run exactly (see DEFAULT_SEED / sim.seed).
+ */
+export function mulberry32(seed) {
+  let a = (seed >>> 0) || 1;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export const DEFAULT_SEED = 20250101;
+
+const rnd   = (rng, a, b) => a + rng() * (b - a);
+const irnd  = (rng, a, b) => Math.floor(rnd(rng, a, b + 1));
+const pick  = (rng, arr) => arr[Math.floor(rng() * arr.length)];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 function findNearestOpenCorridor(sim, x, y) {
@@ -93,10 +110,12 @@ function findNearestOpenCorridor(sim, x, y) {
  * @param {number} params.nbrInfluence  - 0–1, neighbor social influence strength
  * @param {number} params.avgFamilySize - 1–7, average members per family
  * @param {string} params.scenario      - "pedestrian" | "car" | "train"
+ * @param {number} params.seed          - PRNG seed; the same seed + params reproduces a run exactly
  * @param {number} canvasWidth
  */
-export function buildSimulation({ threat, elderPct, childPct, pregnantPct = 0, unaccompChildPct = 0, infoClar, nbrInfluence, avgFamilySize = 3, scenario = "pedestrian", corridorSettings = null, threatRiseRate = 0, humanitarianAccess = 0, checkpointDelay = 0, misinfoRate = 0, infraDegradeRate = 0, coercionRisk = 0, canvasWidth }) {
+export function buildSimulation({ threat, elderPct, childPct, pregnantPct = 0, unaccompChildPct = 0, infoClar, nbrInfluence, avgFamilySize = 3, scenario = "pedestrian", corridorSettings = null, threatRiseRate = 0, humanitarianAccess = 0, checkpointDelay = 0, misinfoRate = 0, infraDegradeRate = 0, coercionRisk = 0, seed = DEFAULT_SEED, canvasWidth }) {
   const sc = SCENARIOS[scenario] ?? SCENARIOS.pedestrian;
+  const rng = mulberry32(seed);
   const W = canvasWidth;
   const H = CANVAS_HEIGHT;
 
@@ -143,8 +162,8 @@ export function buildSimulation({ threat, elderPct, childPct, pregnantPct = 0, u
   for (let fi = 0; fi < NUM_FAMILIES; fi++) {
     let hx, hy, attempts = 0;
     do {
-      hx = rnd(PAD, W - PAD);
-      hy = rnd(PAD, H - PAD);
+      hx = rnd(rng, PAD, W - PAD);
+      hy = rnd(rng, PAD, H - PAD);
       attempts++;
     } while (
       attempts < 200 &&
@@ -157,7 +176,7 @@ export function buildSimulation({ threat, elderPct, childPct, pregnantPct = 0, u
   }
 
   const families = hubPositions.map(({ x: hx, y: hy }, fi) => {
-    const size = irnd(Math.max(1, avgFamilySize - 1), avgFamilySize + 1);
+    const size = irnd(rng, Math.max(1, avgFamilySize - 1), avgFamilySize + 1);
     const name = FAMILY_NAMES[fi];
     const members = [];
     let childCount = 0;
@@ -166,36 +185,36 @@ export function buildSimulation({ threat, elderPct, childPct, pregnantPct = 0, u
     let unaccompCount = 0;
 
     for (let m = 0; m < size; m++) {
-      const isElder        = m > 0 && Math.random() < elderPct;
-      const isChild        = m > 0 && !isElder && Math.random() < childPct;
-      const isPregnant     = m > 0 && !isElder && !isChild && Math.random() < pregnantPct;
-      const isUnaccompChild = m > 0 && !isElder && !isChild && !isPregnant && Math.random() < unaccompChildPct;
+      const isElder        = m > 0 && rng() < elderPct;
+      const isChild        = m > 0 && !isElder && rng() < childPct;
+      const isPregnant     = m > 0 && !isElder && !isChild && rng() < pregnantPct;
+      const isUnaccompChild = m > 0 && !isElder && !isChild && !isPregnant && rng() < unaccompChildPct;
       if (isElder)         elderCount++;
       if (isChild)         childCount++;
       if (isPregnant)      pregnantCount++;
       if (isUnaccompChild) unaccompCount++;
 
-      const mang   = (m / size) * Math.PI * 2 + rnd(-0.3, 0.3);
-      const spread = m === 0 ? 0 : rnd(20, 32);
+      const mang   = (m / size) * Math.PI * 2 + rnd(rng, -0.3, 0.3);
+      const spread = m === 0 ? 0 : rnd(rng, 20, 32);
 
       // Confirmations needed: more for elders and unaccompanied children (need escort/reunification authority)
-      const confirmNeeded = irnd(1, 3) + (infoClar < 4 ? irnd(1, 2) : 0) + (isElder ? 1 : 0) + (isUnaccompChild ? 2 : 0);
+      const confirmNeeded = irnd(rng, 1, 3) + (infoClar < 4 ? irnd(rng, 1, 2) : 0) + (isElder ? 1 : 0) + (isUnaccompChild ? 2 : 0);
 
       // Milling delay: time to prepare before departing
-      const millingExtra = isElder         ? irnd(...sc.millingElder)
-                         : isChild         ? irnd(...sc.millingChild)
-                         : isPregnant      ? irnd(...sc.millingPregnant)
-                         : isUnaccompChild ? irnd(...sc.millingUnaccomp)
+      const millingExtra = isElder         ? irnd(rng, ...sc.millingElder)
+                         : isChild         ? irnd(rng, ...sc.millingChild)
+                         : isPregnant      ? irnd(rng, ...sc.millingPregnant)
+                         : isUnaccompChild ? irnd(rng, ...sc.millingUnaccomp)
                          : 0;
-      const millingTicks = irnd(...sc.millingBase) + millingExtra;
+      const millingTicks = irnd(rng, ...sc.millingBase) + millingExtra;
 
       // Evacuation travel time
-      const evacExtra = isElder         ? irnd(...sc.evacElder)
-                      : isChild         ? irnd(...sc.evacChild)
-                      : isPregnant      ? irnd(...sc.evacPregnant)
-                      : isUnaccompChild ? irnd(...sc.evacUnaccomp)
+      const evacExtra = isElder         ? irnd(rng, ...sc.evacElder)
+                      : isChild         ? irnd(rng, ...sc.evacChild)
+                      : isPregnant      ? irnd(rng, ...sc.evacPregnant)
+                      : isUnaccompChild ? irnd(rng, ...sc.evacUnaccomp)
                       : 0;
-      const evacTicks = irnd(...sc.evacBase) + evacExtra;
+      const evacTicks = irnd(rng, ...sc.evacBase) + evacExtra;
 
       members.push({
         x: hx + Math.cos(mang) * spread,
@@ -208,7 +227,7 @@ export function buildSimulation({ threat, elderPct, childPct, pregnantPct = 0, u
         isPregnant,
         isUnaccompChild,
         isHub: m === 0,
-        name: m === 0 ? name : pick(PERSON_NAMES),
+        name: m === 0 ? name : pick(rng, PERSON_NAMES),
         status: STATUS.UNAWARE,
         confirmNeeded,
         confirmCount: 0,
@@ -221,7 +240,7 @@ export function buildSimulation({ threat, elderPct, childPct, pregnantPct = 0, u
         tx: 0,
         ty: 0,
         family: fi,
-        reachableByHum: Math.random() < humanitarianAccess,
+        reachableByHum: rng() < humanitarianAccess,
       });
     }
 
@@ -258,6 +277,8 @@ export function buildSimulation({ threat, elderPct, childPct, pregnantPct = 0, u
     neighborEdges,
     infoNode,
     humNode,
+    seed,
+    rng,          // seeded stream, consumed by stepSimulation — never reassign
     threat,
     infoClar,
     nbrInfluence,
@@ -294,6 +315,9 @@ export function buildSimulation({ threat, elderPct, childPct, pregnantPct = 0, u
  * @param {number} canvasW
  */
 export function stepSimulation(sim, canvasW, canvasH) {
+  // Seeded stream created in buildSimulation; rebuilt from sim.seed if a caller
+  // supplied a sim state without one (e.g. deserialised).
+  const rng = sim.rng ?? (sim.rng = mulberry32(sim.seed ?? DEFAULT_SEED));
   sim.tick++;
   const t = sim.tick;
   const newLogs = [];
@@ -358,9 +382,9 @@ export function stepSimulation(sim, canvasW, canvasH) {
       // ── UNAWARE → SEEKING ──────────────────────────────────────────────────
       if (mem.status === STATUS.UNAWARE) {
         const alertChance = clamp(sim.effectiveThreat / 10 * 0.35 + (t / 30) * 0.15, 0.02, 0.55);
-        const officialAlert = Math.random() < alertChance;
+        const officialAlert = rng() < alertChance;
         const humAlert = !officialAlert && sim.humNode && sim.humNode.access > 0 && mem.reachableByHum
-          && Math.random() < clamp(sim.effectiveThreat / 10 * 0.22 + (t / 45) * 0.09, 0.01, 0.4);
+          && rng() < clamp(sim.effectiveThreat / 10 * 0.22 + (t / 45) * 0.09, 0.01, 0.4);
 
         if (officialAlert || humAlert) {
           mem.status = STATUS.SEEKING;
@@ -380,7 +404,7 @@ export function stepSimulation(sim, canvasW, canvasH) {
         // Coercion: forced displacement before voluntary threshold
         if (!officialAlert && !humAlert && sim.coercionRisk > 0) {
           const coercChance = clamp(sim.effectiveThreat / 10 * sim.coercionRisk * 0.008, 0, 0.06);
-          if (Math.random() < coercChance) {
+          if (rng() < coercChance) {
             mem.status = STATUS.MILLING;
             mem.millingStart = t;
             mem.seekStart = t;
@@ -397,7 +421,7 @@ export function stepSimulation(sim, canvasW, canvasH) {
       // ── SEEKING → MILLING ─────────────────────────────────────────────────
       else if (mem.status === STATUS.SEEKING) {
         const confirmChance = clamp(sim.infoNode.reliability * 0.45 + ((sim.effectiveInfoClar ?? sim.infoClar) / 10) * 0.2, 0.05, 0.75);
-        if (Math.random() < confirmChance) {
+        if (rng() < confirmChance) {
           mem.confirmCount++;
           mem.lastConfirmSource = 'official';
           sim.activeArcs.push({ x1: sim.infoNode.x, y1: sim.infoNode.y, x2: mem.x, y2: mem.y, born: t, col: "#EF9F27" });
@@ -407,7 +431,7 @@ export function stepSimulation(sim, canvasW, canvasH) {
         // Humanitarian actor confirmation
         if (sim.humNode && sim.humNode.access > 0 && mem.reachableByHum && mem.confirmCount < mem.confirmNeeded) {
           const humConfirmChance = clamp(sim.humNode.reliability * 0.5, 0.08, 0.65);
-          if (Math.random() < humConfirmChance) {
+          if (rng() < humConfirmChance) {
             mem.confirmCount = Math.min(mem.confirmNeeded, mem.confirmCount + 1);
             mem.lastConfirmSource = 'humanitarian';
             sim.activeArcs.push({ x1: sim.humNode.x, y1: sim.humNode.y, x2: mem.x, y2: mem.y, born: t, col: "#1D9E75" });
@@ -417,7 +441,7 @@ export function stepSimulation(sim, canvasW, canvasH) {
 
         // Misinformation channel — false confirmations that may misdirect
         if (sim.misinfoRate > 0 && mem.confirmCount < mem.confirmNeeded) {
-          if (Math.random() < sim.misinfoRate * 0.35) {
+          if (rng() < sim.misinfoRate * 0.35) {
             mem.confirmCount = Math.min(mem.confirmNeeded, mem.confirmCount + 1);
             mem.lastConfirmSource = 'misinfo';
             sim.activeArcs.push({ x1: sim.infoNode.x, y1: sim.infoNode.y, x2: mem.x, y2: mem.y, born: t, col: '#DC2626', misinfo: true });
@@ -430,7 +454,7 @@ export function stepSimulation(sim, canvasW, canvasH) {
           .filter((e) => e.a === f || e.b === f)
           .map((e) => (e.a === f ? e.b : e.a))
           .find((nf) => nf.members.some((m) => m.status === STATUS.MILLING || m.status === STATUS.EVAC));
-        if (activeNeighbor && Math.random() < sim.nbrInfluence) {
+        if (activeNeighbor && rng() < sim.nbrInfluence) {
           mem.confirmCount = Math.min(mem.confirmNeeded, mem.confirmCount + 1);
           mem.lastConfirmSource = 'social';
           sim.socialInfluenceEvents++;
@@ -470,7 +494,7 @@ export function stepSimulation(sim, canvasW, canvasH) {
             if (mem.confirmedByChannel === 'misinfo' && allOpen.length > 1) {
               const nearest = findNearestOpenCorridor(sim, mem.x, mem.y);
               const others  = allOpen.filter(c => c.id !== nearest?.id);
-              corridor = others[Math.floor(Math.random() * others.length)];
+              corridor = others[Math.floor(rng() * others.length)];
             } else {
               corridor = findNearestOpenCorridor(sim, mem.x, mem.y);
             }
@@ -484,8 +508,8 @@ export function stepSimulation(sim, canvasW, canvasH) {
             // Checkpoint delay (applied once when EVAC begins)
             if (sim.checkpointDelay > 0 && !mem.checkpointed) {
               mem.checkpointed = true;
-              if (Math.random() < 0.55) {
-                const cpDelay = 1 + Math.floor(Math.random() * sim.checkpointDelay);
+              if (rng() < 0.55) {
+                const cpDelay = 1 + Math.floor(rng() * sim.checkpointDelay);
                 mem.evacTicks += cpDelay;
                 newLogs.push(`t${t} ${mem.name} held at checkpoint (+${cpDelay}t)`);
               }
@@ -1182,6 +1206,7 @@ export function computeRunSummary(sim, params) {
     bottleneck,
     familyData,
     scenario: sim.scenario,
+    seed: sim.seed,
     params: { ...params },
     trappedCount,
     // Neighbour influence
@@ -1412,6 +1437,8 @@ export default function EvacuationSim() {
   const [pinnedRunId,  setPinnedRunId]  = useState(null);
 
   const [scenario, setScenario] = useState("pedestrian");
+  // Seed for the simulation's PRNG — record it to replay a run exactly.
+  const [seed, setSeed] = useState(DEFAULT_SEED);
 
   const DEFAULT_CORRIDORS = [
     { id: 'N', label: 'North', open: true, closesAtTick: '', opensAtTick: '' },
@@ -1476,6 +1503,7 @@ export default function EvacuationSim() {
         closesAtTick: c.closesAtTick === '' ? null : (parseInt(c.closesAtTick, 10) || null),
         opensAtTick: c.opensAtTick === '' ? null : (parseInt(c.opensAtTick, 10) || null),
       })),
+      seed,
       canvasWidth:   W,
     });
     simRef.current = sim;
@@ -1483,7 +1511,7 @@ export default function EvacuationSim() {
     const ctx = canvas.getContext("2d");
     drawSimulation(ctx, sim, W, CANVAS_HEIGHT, false, hoveredFamilyIdxRef.current);
     setStats(getStats(sim));
-  }, [params, scenario, corridorSettings]);
+  }, [params, scenario, corridorSettings, seed]);
 
   useEffect(() => { reset(); }, [reset]);
 
@@ -1715,6 +1743,34 @@ export default function EvacuationSim() {
           Tick <strong style={{ fontWeight: 500 }}>{tick}</strong>
           {finished && <span style={{ marginLeft: 8, color: "#0F6E56" }}>— complete</span>}
         </span>
+
+        {/* Seed — same seed + same parameters reproduces a run exactly */}
+        <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4 }}>
+          <label htmlFor="sim-seed" style={{ fontSize: 11, color: "#737069" }}>Seed</label>
+          <input
+            id="sim-seed"
+            type="number"
+            value={seed}
+            disabled={running}
+            title="Random seed — record it to replay this exact run"
+            onChange={(e) => {
+              const n = parseInt(e.target.value, 10);
+              setSeed(Number.isNaN(n) ? 0 : n);
+            }}
+            style={{
+              width: 84, fontSize: 11, padding: "3px 5px", borderRadius: 5,
+              border: "0.5px solid rgba(0,0,0,0.2)", background: "#fff", color: "#3d3d3a",
+            }}
+          />
+          <button
+            onClick={() => setSeed(Math.floor(Math.random() * 1e9))}
+            disabled={running}
+            title="Draw a new random seed"
+            style={{ fontSize: 11, padding: "3px 7px", cursor: running ? "default" : "pointer", borderRadius: 5 }}
+          >
+            🎲
+          </button>
+        </span>
       </div>
 
       {/* Corridor controls — pedestrian and car only */}
@@ -1916,6 +1972,11 @@ export default function EvacuationSim() {
               <span style={{ fontSize: 13, fontWeight: 600 }}>
                 Complete — {runSummary.totalTicks} ticks
               </span>
+              {runSummary.seed != null && (
+                <span style={{ fontSize: 11, color: "#737069" }} title="Re-enter this seed with the same settings to reproduce this run">
+                  seed {runSummary.seed}
+                </span>
+              )}
               {diffVsPrev !== null && (
                 <span style={{ fontSize: 11, color: diffColor(diffVsPrev) }}>
                   {diffText(diffVsPrev, "previous")}
