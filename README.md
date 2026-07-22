@@ -62,3 +62,19 @@ The simulation logic is fully separated from the React UI into named exports:
 | `getStats()`        | Returns status counts and demographic tallies |
 
 Deployed on GitHub pages at https://ethical-tech-colab.github.io/Evac-Sim-Melanie/
+
+---
+
+## Peer Review
+
+An independent academic peer review of this report is available in [`peer-review/`](peer-review/) ([Word](peer-review/evacuation-simulation-Peer-Review.docx) &middot; [Markdown](peer-review/evacuation-simulation-Peer-Review.md)).
+
+**Recommendation:** Major revisions
+
+**What the review found:**
+
+- No empirical output anywhere: not a single run, figure, or distribution is reported, yet the paper insists multi-run comparison is the only valid use (S7.6/S8.4-8.5).
+- Designed-in assumptions are presented as findings: the "car equalizes vulnerability" result is a hard-coded identical speed, not an emergent discovery (S5.5, S12.1).
+- The IHL grounding is a core selling point yet S9.3-9.7 documents four load-bearing citations as wrong and leaves them uncorrected.
+
+**Noted strength:** The vulnerability-as-time framing (S8.2, S12.2) is genuinely elegant, and the legal corrections in S9 are careful and, on verification, substantively correct.
