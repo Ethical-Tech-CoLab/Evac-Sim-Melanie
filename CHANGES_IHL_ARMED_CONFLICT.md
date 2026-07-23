@@ -16,13 +16,13 @@ This update extends the evacuation simulation with five armed-conflict mechanics
 
 Corridors can now be configured to open at a specific tick rather than being open from the start, modelling negotiated humanitarian windows. A corridor with `opensAtTick` set begins closed (`pendingOpen: true`) and automatically opens when the simulation reaches that tick, logging a timestamped event and emitting a visual pulse on the canvas.
 
-**IHL basis:** Customary IHL Rule 99; AP II Art. 17.
+**IHL basis:** GC IV Art. 17; Customary Rules 55-56; AP II Art. 17.
 
 ### 1.2 Checkpoint Delays (`checkpointDelay`)
 
 A slider (0–15 ticks) adds a random per-member delay when a household enters the evacuation phase, representing document checks, security screening, and processing time at military or police checkpoints. Higher values reflect more burdensome checkpoint regimes.
 
-**IHL basis:** Customary IHL Rule 99 (checkpoints may not disproportionately impede civilian evacuation).
+**IHL basis:** GC IV Art. 17 and Customary Rules 55-56 (screening must not become de facto obstruction of relief or of agreed removals).
 
 ### 1.3 Misinformation Channel (`misinfoRate`)
 
@@ -57,7 +57,7 @@ Two new population types have been added alongside the existing elders and child
 - `confirmNeeded` unchanged from adult baseline
 - Log tag: `[pregnant]`
 
-**IHL basis:** AP I Art. 16; GC IV Art. 23.
+**IHL basis:** GC IV Art. 16; AP I Arts. 8(a), 70(1), 76.
 
 ### 2.2 Unaccompanied Minors (`unaccompChildPct` slider, 0–20 %)
 
@@ -68,7 +68,7 @@ Two new population types have been added alongside the existing elders and child
 - Colour: `#EA580C` fill / `#C2410C` stroke
 - Log tag: `[unaccomp. minor]`
 
-**IHL basis:** AP I Art. 78 (evacuation of children requires family consent and ICRC notification); ICRC family reunification mandate.
+**IHL basis:** AP I Art. 77; GC IV Arts. 24 and 50 (special protection of children in internal evacuation). Tracing and reunification under GC IV Arts. 26 and 140 and AP I Art. 74. AP I Art. 78 is not cited here: it governs evacuation of non-national children to a foreign country.
 
 ---
 
@@ -128,13 +128,13 @@ The `PopulationFactors` bar charts now include all five population types with co
 
 | Concept | IHL Basis |
 |---|---|
-| Pregnant women / new mothers | AP I Art. 16; GC IV Art. 23 |
-| Unaccompanied minors | AP I Art. 78 |
-| Humanitarian corridors / safe passage | Customary IHL Rule 99; AP II Art. 17 |
+| Pregnant women / new mothers | GC IV Art. 16; AP I Arts. 8(a), 70(1), 76 |
+| Unaccompanied minors | AP I Art. 77; GC IV Arts. 24, 50; tracing GC IV Art. 26, AP I Art. 74 |
+| Humanitarian corridors / safe passage | GC IV Art. 17; Customary Rules 55-56; AP II Art. 17 |
 | Prohibition on forced displacement | AP II Art. 17(1); Customary IHL Rule 129 |
 | Prohibition on perfidy / misinformation | AP I Art. 37 |
 | Prohibition on attacking civilian objects | AP I Art. 52 |
-| Checkpoints and freedom of movement | Customary IHL Rule 99 |
+| Checkpoints and freedom of movement | GC IV Art. 17; Customary Rules 55-56 |
 
 *AP I: 1977 Additional Protocol I to the Geneva Conventions*
 *AP II: 1977 Additional Protocol II to the Geneva Conventions*

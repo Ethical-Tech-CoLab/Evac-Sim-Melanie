@@ -429,11 +429,25 @@ an adult. Vulnerability matters more here than in any other mode, both in
 preparation and in movement.
 
 Car. Preparation is quickest of the three, at a base of 1 to 3 ticks, and every
-category travels at an identical speed of 5.5. A vehicle equalises mobility
-almost completely. The differences between an elder and an adult, so pronounced
-on foot, very nearly disappear. This is the model's clearest single finding, and
-it is a finding about equity rather than about speed: access to transport does
-not merely make evacuation faster, it makes vulnerability stop mattering.
+category travels at an identical speed of 5.5. Because that single speed is
+assigned to every category, the differences between an elder and an adult, so
+pronounced on foot, disappear by construction.
+
+This is a designed-in assumption, not a finding. The model equalises mobility in
+a vehicle because the parameter table was written that way: one car speed for
+all categories, against foot speeds ranging from 1.5 for a child to 2.6 for an
+adult. The simulation cannot output anything else, and earlier drafts of this
+paper wrongly described the result as "the model's clearest single finding."
+What the parameterisation encodes is a modelling judgement -- that a vehicle
+substitutes for physical capacity, so vulnerability stops governing travel speed
+once someone is inside one. That judgement is defensible and worth stating
+plainly, but it is an input to the model rather than a result derived from it,
+and it should not be cited as evidence for the proposition it assumes.
+
+The genuinely emergent results are the ones no parameter sets directly: the
+neighbour-influence cascade (5.3), the interaction between a fixed preparation
+delay and a closing corridor window (6.2), and the channel-split composition
+under degraded information.
 
 Train. The reverse profile. Preparation is the longest of the three at a base of
 4 to 8 ticks, representing the wait for a departure, but once aboard everyone
@@ -625,11 +639,29 @@ following provisions are cited in the repository and are cited correctly.
   affected by armed conflict are entitled to special respect and protection.
   This supports the elder mechanic.
 
-9.2 Four citations in the repository documentation are inaccurate and should be
-corrected. This is not a criticism of the project's substance, which is sound.
-It is a matter of the accuracy that a teaching tool on legal subjects requires.
+9.2 Four citations were inaccurate in earlier versions of the tool. **They have
+now been corrected in the software itself**, not only described here. A teaching
+tool whose pedagogy is "law as behaviour" cannot leave mis-cited law in the
+artefact the student actually uses, so the corrections set out in 9.3 to 9.7
+below have been applied to the corridor and checkpoint text, the population
+settings, the unaccompanied-minors mechanic, the infrastructure text, and the
+built-in guide. The sections that follow state what each citation said, why it
+was wrong, and what now replaces it.
 
-9.3 Customary Rule 99 is cited repeatedly, in the corridor documentation, the
+Changelog for this revision:
+
+| Was cited | For | Problem | Now cited |
+|---|---|---|---|
+| Customary Rule 99 | A right to leave; corridors; checkpoints | Rule 99 governs arbitrary deprivation of liberty; no rule creates a general right to leave | GC IV Art. 17; Customary Rules 55-56; Art. 17 AP II |
+| AP I Art. 16 | Pregnant women | Art. 16 AP I concerns general protection of medical duties | GC IV Art. 16; AP I Arts. 8(a), 70(1), 76 |
+| AP I Art. 78 | Internal evacuation of children | Art. 78 governs evacuation of non-national children to a foreign country | AP I Art. 77; GC IV Arts. 24, 50; tracing under GC IV Art. 26, AP I Art. 74 |
+| Customary Rule 9 | Prohibition on attacking civilian objects | Rule 9 is the definition, not the prohibition | Customary Rule 10 (with Art. 52 AP I) |
+
+GC IV Art. 23, previously cited as a personal protection status for expectant
+mothers, has also been removed from that role: it governs free passage of relief
+consignments and does not confer individual protected status.
+
+9.3 Customary Rule 99 was cited repeatedly, in the corridor documentation, the
 checkpoint documentation, and the built-in guide, as the rule requiring parties
 to allow civilians to leave and prohibiting disproportionate impediment to
 civilian movement. Rule 99 does not say this. Rule 99 provides that arbitrary
@@ -648,7 +680,7 @@ Rules 53 and 54 together with Article 54 of Additional Protocol I, by Rules 55
 and 56 on humanitarian relief and relief personnel, and by Article 58(a) of
 Additional Protocol I with Customary Rule 24.
 
-9.4 Article 16 of Additional Protocol I is cited in the population settings and
+9.4 Article 16 of Additional Protocol I was cited in the population settings and
 in the changes documentation as the provision giving special protection to
 pregnant women. It is not. Article 16 of Additional Protocol I is titled General
 protection of medical duties and concerns the protection of medical personnel
@@ -661,12 +693,12 @@ cases, newborn babies, and expectant mothers within the definition of the
 wounded and sick and therefore within that entire protective regime. Article
 70(1) of Additional Protocol I gives them priority in the distribution of relief,
 and Article 76 provides for the special protection of women. Article 23 of the
-Fourth Geneva Convention, also cited in the repository, does name expectant
+Fourth Geneva Convention, also cited in earlier versions of the repository, does name expectant
 mothers and maternity cases, but only as beneficiaries of the free passage of
 relief consignments. It is not a personal protection status and should not be
 cited as one.
 
-9.5 Article 78 of Additional Protocol I is cited as the basis for the
+9.5 Article 78 of Additional Protocol I was cited as the basis for the
 unaccompanied minors mechanic. The article is real and its content is relevant,
 but its scope is narrower than the repository implies. Article 78 governs the
 evacuation of children who are not a party's own nationals to a foreign country.
@@ -685,7 +717,7 @@ the Fourth Geneva Convention and Article 74 of Additional Protocol I require
 states to facilitate, and that the ICRC's Central Tracing Agency, established
 under Article 140 of the Fourth Geneva Convention, exists to carry out.
 
-9.6 Customary Rule 9 is cited alongside Article 52 of Additional Protocol I for
+9.6 Customary Rule 9 was cited alongside Article 52 of Additional Protocol I for
 the prohibition on attacking civilian objects. Rule 9 is a definition rather than
 a prohibition: it states that civilian objects are all objects that are not
 military objectives. The protective proposition is Rule 10, which provides that
@@ -781,9 +813,13 @@ percentage.
 
 11.3 The most instructive exercise the tool supports is comparative. Run the
 same community on foot and by car with an identical corridor window and identical
-demographics, and the difference in who gets out is entirely attributable to
-access to transport. That single comparison carries the project's central
-argument more effectively than any of its individual settings.
+demographics, and the difference in who gets out is attributable to access to
+transport. Read that comparison carefully: the mode parameters were set so that
+a vehicle equalises travel speed across categories (5.5), so the equalisation
+itself is assumed rather than demonstrated. What the comparison does show, and
+what is not directly set anywhere, is how that assumed speed advantage interacts
+with a closing corridor window, a fixed preparation delay, and the
+neighbour-influence cascade to determine who actually gets out.
 
 ---
 

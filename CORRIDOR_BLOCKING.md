@@ -8,7 +8,7 @@
 
 The current simulation evacuates all members radially outward from their position toward the nearest canvas edge. There is no concept of named routes, exit gates, or blocked paths. Every point on the canvas boundary is equally accessible.
 
-Humanitarian evacuations in armed conflict are defined by the opposite condition: movement is funnelled through a small number of negotiated corridors, some of which may be closed, congested, or actively dangerous. Blocked corridors are among the most consequential operational factors in conflict displacement — and the one most directly regulated by IHL (customary IHL Rule 99; Art. 17 AP II).
+Humanitarian evacuations in armed conflict are defined by the opposite condition: movement is funnelled through a small number of negotiated corridors, some of which may be closed, congested, or actively dangerous. Blocked corridors are among the most consequential operational factors in conflict displacement — and the one most directly regulated by IHL (GC IV Art. 17; customary IHL Rules 55-56; Art. 17 AP II).
 
 Adding blocked corridor mechanics to the Pedestrian and Car scenarios would make the simulation substantially more relevant to humanitarian planning and IHL training.
 
@@ -204,7 +204,7 @@ The end-of-run summary panel should add a **Corridor Summary** section showing:
 
 | Mechanic | IHL Basis |
 |---|---|
-| Corridor blocking | Customary IHL Rule 99 — civilians must be allowed to leave conflict areas |
+| Corridor blocking | GC IV Art. 17 (endeavour to agree removal of wounded, sick, infirm, aged, children, maternity cases); Customary Rules 55-56 (unimpeded passage of relief); Art. 17 AP II (prohibition of forced movement). No rule creates a general civilian right to leave. |
 | Dynamic closure (ceasefire window) | Art. 17 AP II — temporary humanitarian pauses for civilian movement |
 | Trapped / all corridors blocked | Customary IHL Rule 129B — prohibition on displacing civilians by cutting off escape routes |
 | Forced rerouting toward dangerous area | Art. 51(7) AP I — prohibition on using civilian movement as a shield |
