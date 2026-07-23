@@ -32,10 +32,10 @@ The simulation models two vulnerability types: elders (slower, need extra confir
 Under Articles 10–12 AP I and the First Geneva Convention, the wounded and sick have absolute protection and must be prioritised for evacuation. In simulation terms this would mean highest milling delay (they cannot self-prepare) but should have priority access to corridors and transport. Their presence in a household could trigger early alerting from medical networks before the general population receives warnings.
 
 **Unaccompanied minors**
-Separated children are among the highest-risk populations in conflict displacement (Art. 78 AP I prohibits their evacuation without family consent except for compelling security reasons). In the simulation, they could be modelled as members detached from their family cluster — requiring reunification before the hub can depart, or triggering a separate "tracing" phase before milling begins. This reflects the ICRC's family reunification mandate.
+Separated children are among the highest-risk populations in conflict displacement (AP I Art. 77 and GC IV Arts. 24 and 50 govern their protection in internal evacuation; AP I Art. 78, which requires family consent, applies only to evacuation of non-national children abroad, and does not apply here -- see compelling security reasons). In the simulation, they could be modelled as members detached from their family cluster — requiring reunification before the hub can depart, or triggering a separate "tracing" phase before milling begins. This reflects the ICRC's family reunification mandate.
 
 **Pregnant women and new mothers**
-IHL (Art. 16 AP I, Art. 23 GC IV) gives pregnant women and mothers of young children special protection. Their milling delay and movement speed are comparable to elders, but they also trigger priority access mechanics in humanitarian corridors.
+IHL (GC IV Art. 16; AP I Arts. 8(a), 70(1) and 76) gives pregnant women and mothers of young children special protection. (Art. 16 AP I concerns general protection of medical duties, and Art. 23 GC IV governs free passage of relief consignments rather than personal status; neither is the correct basis.) Their milling delay and movement speed are comparable to elders, but they also trigger priority access mechanics in humanitarian corridors.
 
 **Persons with disabilities**
 Frequently invisible in mass displacement modelling. Their presence should affect household milling time similarly to elders, but with the added mechanic that they may require specific transport (not available in all scenarios), making the Car scenario disproportionately important for their evacuation.
@@ -106,7 +106,7 @@ There is no concept of route or directionality. All evacuating members move radi
 ### Suggested additions
 
 **Humanitarian corridor mechanic**
-A corridor is a negotiated, time-limited, spatially-defined route for civilian evacuation. Under customary IHL Rule 99 and Article 17 AP II, parties must allow civilians to leave and may not use them as human shields or obstruct their passage. The simulation could model:
+A corridor is a negotiated, time-limited, spatially-defined route for civilian evacuation. Under GC IV Art. 17, Customary Rules 55-56 and Article 17 AP II, parties must endeavour to agree the removal of vulnerable civilians and must allow civilians to leave and may not use them as human shields or obstruct their passage. The simulation could model:
 - A specific exit point (not all canvas edges) that represents the corridor
 - A corridor validity window (open for N ticks, then closed or uncertain)
 - A corridor reliability parameter (probability that the corridor is actually safe when used)
@@ -258,13 +258,13 @@ A split-screen mode showing the same community evacuating under IHL-compliant co
 | Civilian protection during evacuation | Art. 58 AP I; Art. 17 AP II |
 | Prohibition on forced displacement | Art. 17(1) AP II; Customary IHL Rule 129 |
 | Protection of wounded and sick | Arts. 10–12 AP I; GC I Arts. 12–18 |
-| Unaccompanied minors | Art. 78 AP I |
-| Pregnant women and mothers | Art. 16 AP I; Art. 23 GC IV |
+| Unaccompanied minors | AP I Art. 77; GC IV Arts. 24, 50 |
+| Pregnant women and mothers | GC IV Art. 16; AP I Arts. 8(a), 70(1), 76 |
 | Prohibition on starvation / siege | Customary IHL Rule 53; Art. 54 AP I |
 | Humanitarian access | Art. 70 AP I; Customary IHL Rule 55 |
-| Prohibition on attacking civilian objects | Art. 52 AP I; Customary IHL Rule 9 |
+| Prohibition on attacking civilian objects | Art. 52 AP I; Customary IHL Rule 10 |
 | Prohibition on perfidy / misinformation | Art. 37 AP I |
-| Checkpoints and freedom of movement | Customary IHL Rule 99 (ICRC Study) |
+| Checkpoints and freedom of movement | GC IV Art. 17; Customary Rules 55-56 (ICRC Study) |
 | Enforced disappearance | Customary IHL Rule 98 |
 | ICRC mandate and emblem protection | Art. 5 AP I; GC I Arts. 26–27 |
 

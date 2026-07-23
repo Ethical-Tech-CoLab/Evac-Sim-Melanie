@@ -807,7 +807,7 @@ function CorridorGuide() {
           <div style={{ background: "#FEF3E2", borderRadius: 10, padding: "14px 16px", border: "0.5px solid rgba(217,119,6,0.2)" }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: "#92400E", marginBottom: 6 }}>Humanitarian relevance</div>
             <p style={{ fontSize: 12, lineHeight: 1.75, color: "#78350F", margin: 0 }}>
-              In armed conflict, corridors are negotiated under IHL (Customary Rule 99; Art. 17 AP II) and may close at any moment due to ceasefire collapse, military advance, or checkpoint shutdown. The dynamic closing mechanic makes this time pressure visible and measurable: families that spend too long milling — because of elders, young children, or low information clarity — may never reach safety before the window closes. The gap between "finished milling" and "corridor still open" is the core humanitarian planning problem this feature models.
+              In armed conflict, corridors are negotiated under IHL (GC IV Art. 17; Customary Rules 55-56; Art. 17 AP II) and may close at any moment due to ceasefire collapse, military advance, or checkpoint shutdown. The dynamic closing mechanic makes this time pressure visible and measurable: families that spend too long milling — because of elders, young children, or low information clarity — may never reach safety before the window closes. The gap between "finished milling" and "corridor still open" is the core humanitarian planning problem this feature models.
             </p>
           </div>
         </FadeIn>
@@ -934,7 +934,7 @@ function ArmedConflictGuide() {
         { swatch: "#1D9E75", label: "Green ripple",           desc: "Fired when the window opens. Canvas logs: \"✅ North corridor opened — humanitarian window in effect\"." },
         { swatch: "#F59E0B", label: "Amber gate (closing soon)", desc: "Window is open but closes within 5 ticks — urgency indicator." },
       ],
-      ihl: "Art. 17 AP II and Customary IHL Rule 99 require parties to allow civilians to leave and to facilitate humanitarian corridors. The opens t: / closes t: window directly models a negotiated passage with a fixed validity — and shows what happens when it expires before every vulnerable household has completed the milling phase.",
+      ihl: "No rule of IHL creates a general civilian right to leave a besieged area. GC IV Art. 17 requires parties to endeavour to conclude local agreements for the removal of the wounded, sick, infirm, aged, children and maternity cases; Customary Rules 55-56 require rapid and unimpeded passage of humanitarian relief and relief personnel; and Art. 17 AP II prohibits the forced movement of civilians in non-international armed conflict. The opens t: / closes t: window directly models a negotiated passage with a fixed validity — and shows what happens when it expires before every vulnerable household has completed the milling phase.",
     },
     {
       num: "2",
@@ -948,7 +948,7 @@ function ArmedConflictGuide() {
         { swatch: "#D97706", label: "Amber dot badge",        desc: "A small amber circle on any member currently in EVAC status who was held at a checkpoint." },
         { swatch: "#D97706", label: "Log entry",              desc: "\"t12 Baraka (Kim) held at checkpoint (+4t)\" — the exact delay is recorded per member." },
       ],
-      ihl: "Customary IHL Rule 99 prohibits disproportionate impediment to civilian movement. Checkpoints are lawful for security screening but must not be used to block civilian evacuation. The slider models the operational reality: even \"lawful\" screening imposes delay that compounds across a population, and households with elders or young children — who are already slower — absorb the greatest harm from any added hold time.",
+      ihl: "GC IV Art. 17 and Customary Rules 55-56 require parties to facilitate the removal of vulnerable civilians from besieged areas and the unimpeded passage of relief. Checkpoints are lawful for security screening but must not be used to block civilian evacuation. The slider models the operational reality: even \"lawful\" screening imposes delay that compounds across a population, and households with elders or young children — who are already slower — absorb the greatest harm from any added hold time.",
     },
     {
       num: "3",
@@ -977,7 +977,7 @@ function ArmedConflictGuide() {
         { swatch: "#737069", label: "clarity X.X/10 ▼",     desc: "The info node label shows degraded effective clarity. The value updates each tick." },
         { swatch: "#737069", label: "Slower confirmations",  desc: "Members in SEEKING phase receive confirmations less frequently as the run progresses — visible as longer gaps between confirmation log entries." },
       ],
-      ihl: "Article 52 AP I and Customary IHL Rule 9 prohibit attacks on civilian objects, including communication infrastructure. When telecommunications infrastructure is destroyed — whether unlawfully targeted or as incidental damage — the information blackout that follows is a predictable humanitarian consequence. The infrastructure damage slider models this blackout and its compounding effect on late-moving households who are still seeking confirmation when clarity collapses.",
+      ihl: "Article 52 AP I and Customary IHL Rule 10 prohibit attacks on civilian objects (Rule 9 defines what a civilian object is; Rule 10 carries the prohibition), including communication infrastructure. When telecommunications infrastructure is destroyed — whether unlawfully targeted or as incidental damage — the information blackout that follows is a predictable humanitarian consequence. The infrastructure damage slider models this blackout and its compounding effect on late-moving households who are still seeking confirmation when clarity collapses.",
     },
     {
       num: "5",
@@ -1386,7 +1386,7 @@ function IHLBackground() {
           {[
             {
               name: "Special protection for vulnerable persons",
-              ref: "GC IV Art. 23 — AP I Arts. 8–17 — Customary Rule 138",
+              ref: "GC IV Arts. 16, 24, 50 — AP I Arts. 8(a), 70(1), 76, 77 — Customary Rule 138",
               body: "IHL accords specific protection to the wounded and sick, children, pregnant women, and elderly persons — requiring that they receive priority in evacuation and humanitarian assistance. The simulation's elder and child mechanics directly reflect these categories: slower milling, slower movement, and greater sensitivity to information quality and corridor availability.",
             },
             {

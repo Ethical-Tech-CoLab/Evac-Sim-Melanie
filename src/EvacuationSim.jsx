@@ -1446,7 +1446,7 @@ function generateCommsAdvice(rs) {
       col: "#D97706",
       bg: "#FEF3E2",
       title: "Negotiate checkpoint procedures — and pre-register vulnerable households",
-      body: `${rs.checkpointedCount} member${rs.checkpointedCount !== 1 ? "s were" : " was"} delayed at checkpoints. Under Customary IHL Rule 99, checkpoints must not disproportionately impede civilian movement. Negotiate in advance a simplified screening procedure for documented humanitarian evacuations, and pre-register households with elders, young children, or medical needs so they can be waved through priority lanes without full documentation checks.`,
+      body: `${rs.checkpointedCount} member${rs.checkpointedCount !== 1 ? "s were" : " was"} delayed at checkpoints. Under GC IV Art. 17, parties must endeavour to conclude local agreements for the removal of the wounded, sick, infirm, aged, children and maternity cases from besieged areas, and Customary Rules 55-56 require rapid, unimpeded passage of humanitarian relief. Screening must not become de facto obstruction. Negotiate in advance a simplified screening procedure for documented humanitarian evacuations, and pre-register households with elders, young children, or medical needs so they can be waved through priority lanes without full documentation checks.`,
     });
   }
 
@@ -1479,7 +1479,7 @@ function generateCommsAdvice(rs) {
       col: "#EA580C",
       bg: "#FFF7ED",
       title: "Activate family reunification protocols before routing unaccompanied children",
-      body: `Unaccompanied children cannot safely evacuate without an authorised escort. Under AP I Art. 78, they may not be removed from conflict areas without parental or guardian consent except in compelling security emergencies. Establish a child registration desk at the nearest safe point, activate ICRC family tracing services, and brief community monitors to hold separated children at a safe assembly point rather than routing them into the main evacuation flow. Movement without reunification exposes children to trafficking and secondary harm.`,
+      body: `Unaccompanied children cannot safely evacuate without an authorised escort. Under AP I Art. 77 and GC IV Arts. 24 and 50, children are entitled to special respect and protection and to measures securing their identification and family unity. (AP I Art. 78 governs evacuation to a foreign country and does not apply to internal evacuation.) Establish a child registration desk at the nearest safe point, activate ICRC family tracing services, and brief community monitors to hold separated children at a safe assembly point rather than routing them into the main evacuation flow. Movement without reunification exposes children to trafficking and secondary harm.`,
     });
   }
 
@@ -1757,12 +1757,12 @@ export default function EvacuationSim() {
                  : v <= 20  ? "Small child population — some gathering delays"
                             : "High child population — significant preparation delays" },
         { key: "pregnantPct",   label: "Pregnant women",       min: 0, max: 30,  suffix: "%",
-          hint: v => v === 0 ? "No pregnant women — IHL Art. 16 AP I special category absent"
+          hint: v => v === 0 ? "No pregnant women — GC IV Art. 16 / AP I Art. 8(a) special category absent"
                  : v <= 10  ? "Small proportion — some milling and mobility delays; priority transport advised"
-                            : "Significant proportion — assisted transport and priority corridor access essential (Art. 16 AP I, GC IV Art. 23)" },
+                            : "Significant proportion — assisted transport and priority corridor access essential (GC IV Art. 16; AP I Arts. 8(a), 70(1), 76)" },
         { key: "unaccompChildPct", label: "Unaccomp. minors",  min: 0, max: 20,  suffix: "%",
           hint: v => v === 0 ? "No unaccompanied minors — all children have family escorts"
-                 : v <= 6   ? "Some unaccompanied minors — family reunification delays likely before departure (Art. 78 AP I)"
+                 : v <= 6   ? "Some unaccompanied minors — family reunification delays likely before departure (GC IV Art. 26; AP I Art. 74)"
                             : "High proportion — significant reunification delays; ICRC tracing services required" },
         { key: "nbrInfluence",  label: "Neighbor influence",  min: 0, max: 100, suffix: "%",
           hint: (v, sc) => {
